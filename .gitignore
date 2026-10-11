@@ -1,0 +1,44 @@
+# Dependencias
+node_modules/
+
+# Build y caché de Angular
+/dist/
+/out-tsc/
+/tmp/
+/.angular/cache/
+/.angular/
+/.sass-cache/
+/bazel-out/
+/coverage/
+
+# Variables de entorno (no subir claves como GEMINI_API_KEY)
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+*.log
+
+# Editores e IDEs
+/.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
