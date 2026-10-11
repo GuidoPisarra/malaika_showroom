@@ -1,0 +1,6 @@
+{
+  "name": "Malaika Showroom",
+  "description": "Boutique de moda femenina y accesorios con arquitectura DDD, maniquí interactivo para crear looks, catálogo con filtros avanzados, showroom en realidad aumentada y pasarela de pagos segura.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
