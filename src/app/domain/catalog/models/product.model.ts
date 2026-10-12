@@ -29,6 +29,7 @@ export type GarmentShape =
   | 'top-blouse'
   | 'top-crop'
   | 'blazer'
+  | 'vest-long'
   | 'pants-palazzo'
   | 'skirt-satin'
   | 'shoes-heels'

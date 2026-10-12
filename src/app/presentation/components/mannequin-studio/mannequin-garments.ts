@@ -81,6 +81,12 @@ const PALAZZO =
   'M102 198 L177 198 C178 250 166 320 148 428 L104 430 C112 356 124 296 139 240 C128 300 112 364 98 432 L52 432 C66 360 84 300 104 254 C106 236 106 218 102 198 Z';
 const PALAZZO_FOLDS = 'M96 276 C88 330 76 384 66 430 M162 252 C156 320 148 380 138 428 M118 300 L106 428';
 
+/** Chaleco largo sin mangas, abierto adelante: cada delantero baja del hombro a la rodilla. */
+const VEST_LEFT = 'M100 82 L116 77 L121 120 L122 206 L121 340 Q108 344 94 339 C97 300 100 250 102 206 L101 172 L100 140 Z';
+const VEST_RIGHT =
+  'M144 78 L162 96 C163 115 161 132 157 144 L157 168 L166 186 L178 206 C179 250 180 300 181 336 Q158 342 137 339 L136 206 L136 120 Z';
+const VEST_FOLDS = 'M110 214 L107 336 M150 214 L151 336 M165 214 L167 334';
+
 // --- Detalles -----------------------------------------------------------------
 
 /** Zapatos sobre los pies en punta del maniquí (izquierdo de perfil, derecho de frente). */
@@ -140,6 +146,11 @@ export function buildGarmentLayers(slots: DressableSlots): GarmentLayer[] {
         { kind: 'shape', key: 'blazer-lapels', d: BLAZER_LAPELS, stroke: OUTLINE, strokeWidth: 0.5 },
         { kind: 'shape', key: 'blazer-pockets', d: BLAZER_DETAILS, stroke: OUTLINE, strokeWidth: 0.5 },
         { kind: 'shape', key: 'blazer-button', d: 'M128 174 m-1.8 0 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0', fill: GOLD },
+      );
+    } else if (s.svgType === 'vest-long') {
+      layers.push(
+        { kind: 'drape', key: 'vest-left', d: VEST_LEFT, fill: s.colorHex, texture, folds: VEST_FOLDS },
+        { kind: 'drape', key: 'vest-right', d: VEST_RIGHT, fill: s.colorHex, texture },
       );
     } else if (s.svgType === 'top-crop') {
       layers.push({ kind: 'hug', key: 'crop', clip: CROP_BODICE, fill: s.colorHex, texture });

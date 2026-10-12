@@ -33,7 +33,7 @@ export class ColorDto {
 /** Cómo se dibuja la prenda en el maniquí de la tienda. */
 export class SilhouetteDto {
   @IsIn([
-    'dress-silk', 'dress-midi', 'top-blouse', 'top-crop', 'blazer', 'pants-palazzo',
+    'dress-silk', 'dress-midi', 'top-blouse', 'top-crop', 'blazer', 'vest-long', 'pants-palazzo',
     'skirt-satin', 'shoes-heels', 'shoes-mules', 'bag-clutch', 'jewelry-necklace', 'hat-fedora',
   ])
   svgType: string;

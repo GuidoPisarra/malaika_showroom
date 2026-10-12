@@ -10,7 +10,7 @@ import {
 /** Formas que entran en cada lugar del maniquí. */
 export const SHAPES_BY_SLOT: Record<GarmentSlot, GarmentShape[]> = {
   dress: ['dress-silk', 'dress-midi'],
-  top: ['top-blouse', 'top-crop', 'blazer'],
+  top: ['top-blouse', 'top-crop', 'blazer', 'vest-long'],
   bottom: ['pants-palazzo', 'skirt-satin'],
   shoes: ['shoes-heels', 'shoes-mules'],
   accessory: ['bag-clutch', 'jewelry-necklace', 'hat-fedora'],
@@ -22,6 +22,7 @@ export const SHAPE_LABELS: Record<GarmentShape, string> = {
   'top-blouse': 'Blusa',
   'top-crop': 'Top corto',
   blazer: 'Blazer o saco',
+  'vest-long': 'Chaleco largo',
   'pants-palazzo': 'Pantalón',
   'skirt-satin': 'Falda',
   'shoes-heels': 'Sandalias o stilettos',
