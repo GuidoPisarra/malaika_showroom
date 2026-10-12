@@ -125,7 +125,7 @@ export interface Dashboard {
 
 // ---------- Productos ----------
 
-export type ProductSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress';
+export type ProductSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress' | 'outer';
 export type ArModelType = 'hanger' | 'mannequin' | 'display-stand';
 
 export interface ProductColor {

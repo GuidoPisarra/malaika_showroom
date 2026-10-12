@@ -181,7 +181,8 @@ export class ProductCardComponent {
       slots.top?.id === this.product.id ||
       slots.bottom?.id === this.product.id ||
       slots.shoes?.id === this.product.id ||
-      slots.accessory?.id === this.product.id
+      slots.accessory?.id === this.product.id ||
+      slots.outer?.id === this.product.id
     );
   }
 

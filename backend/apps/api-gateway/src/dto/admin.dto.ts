@@ -67,7 +67,7 @@ export class ProductDto {
   @IsString() @MaxLength(40)
   category: string;
 
-  @IsOptional() @IsIn(['top', 'bottom', 'shoes', 'accessory', 'dress'])
+  @IsOptional() @IsIn(['top', 'bottom', 'shoes', 'accessory', 'dress', 'outer'])
   slot?: string;
 
   @IsUrl({ require_tld: false })

@@ -191,6 +191,20 @@ export const SILHOUETTE_SKIN_TONES: SilhouetteSkinTone[] = [
                   </div>
                 }
 
+                <!-- Outer Hotspot -->
+                @if (lookBuilderFacade.slots().outer; as outer) {
+                  <div class="absolute top-[40%] -left-3 pointer-events-auto">
+                    <button
+                      (click)="lookBuilderFacade.unequipSlot('outer')"
+                      class="px-2 py-1 bg-stone-900/90 text-amber-200 text-[10px] rounded-lg shadow-md flex items-center gap-1 hover:bg-rose-900 transition-colors cursor-pointer"
+                      title="Quitar abrigo"
+                    >
+                      <span class="max-w-[85px] truncate">{{ outer.name }}</span>
+                      <span class="material-symbols-outlined text-xs">close</span>
+                    </button>
+                  </div>
+                }
+
                 <!-- Bottom Hotspot -->
                 @if (lookBuilderFacade.slots().bottom; as bottom) {
                   <div class="absolute top-[58%] -right-3 pointer-events-auto">
@@ -364,6 +378,17 @@ export const SILHOUETTE_SKIN_TONES: SilhouetteSkinTone[] = [
                   </button>
                   <button
                     type="button"
+                    (click)="lookBuilderFacade.setSlotSelector('outer')"
+                    class="px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all shrink-0"
+                    [ngClass]="{
+                      'bg-stone-900 text-amber-200': lookBuilderFacade.activeSlotSelector() === 'outer',
+                      'bg-stone-100 text-stone-700 hover:bg-stone-200': lookBuilderFacade.activeSlotSelector() !== 'outer'
+                    }"
+                  >
+                    Abrigos & Chalecos
+                  </button>
+                  <button
+                    type="button"
                     (click)="lookBuilderFacade.setSlotSelector('bottom')"
                     class="px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all shrink-0"
                     [ngClass]="{
@@ -493,24 +518,7 @@ export class MannequinStudioComponent {
 
   activeSlotProducts(): Product[] {
     const slot = this.lookBuilderFacade.activeSlotSelector();
-    const all = this.catalogFacade.allProducts();
-
-    if (slot === 'dress') {
-      return all.filter((p) => p.slot === 'dress');
-    }
-    if (slot === 'top') {
-      return all.filter((p) => p.slot === 'top');
-    }
-    if (slot === 'bottom') {
-      return all.filter((p) => p.slot === 'bottom');
-    }
-    if (slot === 'shoes') {
-      return all.filter((p) => p.slot === 'shoes');
-    }
-    if (slot === 'accessory') {
-      return all.filter((p) => p.slot === 'accessory');
-    }
-    return all;
+    return this.catalogFacade.allProducts().filter((p) => p.slot === slot);
   }
 
   isItemEquipped(product: Product): boolean {
@@ -520,7 +528,8 @@ export class MannequinStudioComponent {
       slots.top?.id === product.id ||
       slots.bottom?.id === product.id ||
       slots.shoes?.id === product.id ||
-      slots.accessory?.id === product.id
+      slots.accessory?.id === product.id ||
+      slots.outer?.id === product.id
     );
   }
 

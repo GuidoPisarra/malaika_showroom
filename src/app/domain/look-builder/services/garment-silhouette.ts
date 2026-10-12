@@ -11,6 +11,7 @@ import {
 export const SHAPES_BY_SLOT: Record<GarmentSlot, GarmentShape[]> = {
   dress: ['dress-silk', 'dress-midi'],
   top: ['top-blouse', 'top-crop', 'blazer', 'vest-long'],
+  outer: ['vest-long', 'blazer'],
   bottom: ['pants-palazzo', 'skirt-satin'],
   shoes: ['shoes-heels', 'shoes-mules'],
   accessory: ['bag-clutch', 'jewelry-necklace', 'hat-fedora'],

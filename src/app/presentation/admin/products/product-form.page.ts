@@ -32,6 +32,7 @@ const SLOTS: { value: ProductSlot; label: string }[] = [
   { value: 'top', label: 'Parte de arriba' },
   { value: 'bottom', label: 'Parte de abajo' },
   { value: 'dress', label: 'Vestido / enterito' },
+  { value: 'outer', label: 'Abrigo o chaleco (va encima)' },
   { value: 'shoes', label: 'Calzado' },
   { value: 'accessory', label: 'Accesorio' },
 ];

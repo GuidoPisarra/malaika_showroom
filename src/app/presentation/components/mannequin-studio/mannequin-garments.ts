@@ -135,34 +135,8 @@ export function buildGarmentLayers(slots: DressableSlots): GarmentLayer[] {
     }
   }
 
-  if (slots.top) {
-    const s = resolveSilhouette(slots.top);
-    const texture = s.texturePattern ?? 'solid';
-    if (s.svgType === 'blazer') {
-      layers.push(
-        { kind: 'hug', key: 'blazer-body', clip: JACKET_BODY, fill: s.colorHex, texture },
-        { kind: 'hug', key: 'blazer-arm-left', clip: ARM_LEFT_FULL, fill: s.colorHex, texture },
-        { kind: 'hug', key: 'blazer-arm-right', clip: ARM_RIGHT_FULL, fill: s.colorHex, texture },
-        { kind: 'shape', key: 'blazer-lapels', d: BLAZER_LAPELS, stroke: OUTLINE, strokeWidth: 0.5 },
-        { kind: 'shape', key: 'blazer-pockets', d: BLAZER_DETAILS, stroke: OUTLINE, strokeWidth: 0.5 },
-        { kind: 'shape', key: 'blazer-button', d: 'M128 174 m-1.8 0 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0', fill: GOLD },
-      );
-    } else if (s.svgType === 'vest-long') {
-      layers.push(
-        { kind: 'drape', key: 'vest-left', d: VEST_LEFT, fill: s.colorHex, texture, folds: VEST_FOLDS },
-        { kind: 'drape', key: 'vest-right', d: VEST_RIGHT, fill: s.colorHex, texture },
-      );
-    } else if (s.svgType === 'top-crop') {
-      layers.push({ kind: 'hug', key: 'crop', clip: CROP_BODICE, fill: s.colorHex, texture });
-    } else {
-      layers.push(
-        { kind: 'hug', key: 'blouse', clip: BODICE, fill: s.colorHex, texture },
-        { kind: 'hug', key: 'blouse-sleeve-left', clip: ARM_LEFT_CAP, fill: s.colorHex, texture },
-        { kind: 'hug', key: 'blouse-sleeve-right', clip: ARM_RIGHT_CAP, fill: s.colorHex, texture },
-        { kind: 'shape', key: 'blouse-neck', d: NECKLINE_TRIM, stroke: OUTLINE, strokeWidth: 0.5 },
-      );
-    }
-  }
+  if (slots.top) layers.push(...upperLayers(slots.top, ''));
+  if (slots.outer) layers.push(...upperLayers(slots.outer, 'outer-'));
 
   if (slots.shoes) {
     const s = resolveSilhouette(slots.shoes);
@@ -181,6 +155,38 @@ export function buildGarmentLayers(slots: DressableSlots): GarmentLayer[] {
     layers.push(...accessoryLayers(slots.accessory));
   }
 
+  return layers;
+}
+
+/** Parte de arriba o abrigo; `prefix` separa las claves cuando van los dos. */
+function upperLayers(item: DressableItem, prefix: string): GarmentLayer[] {
+  const layers: GarmentLayer[] = [];
+  const s = resolveSilhouette(item);
+  const texture = s.texturePattern ?? 'solid';
+  if (s.svgType === 'blazer') {
+    layers.push(
+      { kind: 'hug', key: prefix + 'blazer-body', clip: JACKET_BODY, fill: s.colorHex, texture },
+      { kind: 'hug', key: prefix + 'blazer-arm-left', clip: ARM_LEFT_FULL, fill: s.colorHex, texture },
+      { kind: 'hug', key: prefix + 'blazer-arm-right', clip: ARM_RIGHT_FULL, fill: s.colorHex, texture },
+      { kind: 'shape', key: prefix + 'blazer-lapels', d: BLAZER_LAPELS, stroke: OUTLINE, strokeWidth: 0.5 },
+      { kind: 'shape', key: prefix + 'blazer-pockets', d: BLAZER_DETAILS, stroke: OUTLINE, strokeWidth: 0.5 },
+      { kind: 'shape', key: prefix + 'blazer-button', d: 'M128 174 m-1.8 0 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0', fill: GOLD },
+    );
+  } else if (s.svgType === 'vest-long') {
+    layers.push(
+      { kind: 'drape', key: prefix + 'vest-left', d: VEST_LEFT, fill: s.colorHex, texture, folds: VEST_FOLDS },
+      { kind: 'drape', key: prefix + 'vest-right', d: VEST_RIGHT, fill: s.colorHex, texture },
+    );
+  } else if (s.svgType === 'top-crop') {
+    layers.push({ kind: 'hug', key: prefix + 'crop', clip: CROP_BODICE, fill: s.colorHex, texture });
+  } else {
+    layers.push(
+      { kind: 'hug', key: prefix + 'blouse', clip: BODICE, fill: s.colorHex, texture },
+      { kind: 'hug', key: prefix + 'blouse-sleeve-left', clip: ARM_LEFT_CAP, fill: s.colorHex, texture },
+      { kind: 'hug', key: prefix + 'blouse-sleeve-right', clip: ARM_RIGHT_CAP, fill: s.colorHex, texture },
+      { kind: 'shape', key: prefix + 'blouse-neck', d: NECKLINE_TRIM, stroke: OUTLINE, strokeWidth: 0.5 },
+    );
+  }
   return layers;
 }
 

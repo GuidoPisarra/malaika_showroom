@@ -7,7 +7,8 @@ export type ProductCategory =
   | 'accesorios'
   | 'joyeria';
 
-export type GarmentSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress';
+/** `outer` va encima de la parte de arriba o del vestido (chalecos, blazers, sacos). */
+export type GarmentSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress' | 'outer';
 
 export type FashionOccasion = 'casual' | 'fiesta' | 'noche' | 'oficina' | 'cocktail';
 

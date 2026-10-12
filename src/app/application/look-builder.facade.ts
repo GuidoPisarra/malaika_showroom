@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Product } from '../domain/catalog/models/product.model';
-import { MannequinSlots, LookPreset, SavedLook } from '../domain/look-builder/models/look.model';
+import { MannequinSlots, LookPreset, SavedLook, placeOnMannequin } from '../domain/look-builder/models/look.model';
 import { LookStylistDomainService } from '../domain/look-builder/services/look-stylist.domain-service';
 import { AuthSessionService } from '../infrastructure/auth/auth-session.service';
 import { API_BASE_URL } from '../infrastructure/http/api.config';
@@ -41,7 +41,7 @@ export class LookBuilderFacade {
   });
 
   // Active filter within the mannequin selector tabs: 'all' | 'top' | 'bottom' | 'dress' | 'shoes' | 'accessory'
-  readonly activeSlotSelector = signal<'dress' | 'top' | 'bottom' | 'shoes' | 'accessory'>('dress');
+  readonly activeSlotSelector = signal<'dress' | 'top' | 'outer' | 'bottom' | 'shoes' | 'accessory'>('dress');
 
   // Notification / toast when item is equipped
   readonly lastEquippedNotification = signal<string | null>(null);
@@ -140,27 +140,7 @@ export class LookBuilderFacade {
   }
 
   equipItem(product: Product): void {
-    this.slots.update((current) => {
-      const next = { ...current };
-
-      if (product.slot === 'dress') {
-        next.dress = product;
-        next.top = undefined;
-        next.bottom = undefined;
-      } else if (product.slot === 'top') {
-        next.top = product;
-        next.dress = undefined;
-      } else if (product.slot === 'bottom') {
-        next.bottom = product;
-        next.dress = undefined;
-      } else if (product.slot === 'shoes') {
-        next.shoes = product;
-      } else if (product.slot === 'accessory') {
-        next.accessory = product;
-      }
-
-      return next;
-    });
+    this.slots.update((current) => placeOnMannequin(current, product));
 
     this.showNotification(`"${product.name}" colocado en el maniquí.`);
   }
@@ -179,32 +159,16 @@ export class LookBuilderFacade {
       bottom: undefined,
       shoes: undefined,
       accessory: undefined,
+      outer: undefined,
     });
     this.showNotification('Maniquí reiniciado.');
   }
 
   applyPreset(preset: LookPreset, allProducts: Product[]): void {
-    const nextSlots: MannequinSlots = {};
-
+    let nextSlots: MannequinSlots = {};
     preset.itemIds.forEach((id) => {
       const prod = allProducts.find((p) => p.id === id);
-      if (!prod) return;
-
-      if (prod.slot === 'dress') {
-        nextSlots.dress = prod;
-        nextSlots.top = undefined;
-        nextSlots.bottom = undefined;
-      } else if (prod.slot === 'top') {
-        nextSlots.top = prod;
-        nextSlots.dress = undefined;
-      } else if (prod.slot === 'bottom') {
-        nextSlots.bottom = prod;
-        nextSlots.dress = undefined;
-      } else if (prod.slot === 'shoes') {
-        nextSlots.shoes = prod;
-      } else if (prod.slot === 'accessory') {
-        nextSlots.accessory = prod;
-      }
+      if (prod) nextSlots = placeOnMannequin(nextSlots, prod);
     });
 
     this.slots.set(nextSlots);
@@ -243,7 +207,7 @@ export class LookBuilderFacade {
     this.showNotification(`"${lookName}" guardado en este navegador. Creá tu cuenta para no perderlo.`);
   }
 
-  setSlotSelector(slot: 'dress' | 'top' | 'bottom' | 'shoes' | 'accessory'): void {
+  setSlotSelector(slot: 'dress' | 'top' | 'outer' | 'bottom' | 'shoes' | 'accessory'): void {
     this.activeSlotSelector.set(slot);
   }
 

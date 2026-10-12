@@ -37,3 +37,14 @@ describe('buildGarmentLayers', () => {
     expect(blouse.filter((l) => l.kind === 'hug').map((l) => l.key)).toEqual(['blouse', 'blouse-sleeve-left', 'blouse-sleeve-right']);
   });
 });
+
+describe('abrigo encima de la parte de arriba', () => {
+  it('dibuja el chaleco después de la blusa', () => {
+    const keys = buildGarmentLayers({
+      top: item('top', 'tops', 'top-blouse'),
+      outer: item('outer', 'tops', 'vest-long'),
+    }).map((l) => l.key);
+    expect(keys.indexOf('blouse')).toBeGreaterThanOrEqual(0);
+    expect(keys.indexOf('outer-vest-left')).toBeGreaterThan(keys.indexOf('blouse'));
+  });
+});
