@@ -301,7 +301,11 @@ export interface StoreSettings {
   storefrontUrl: string;
   contactEmail: string | null;
   contactPhone: string | null;
+  emails: EmailSettings;
 }
+
+/** Cuerpo de PATCH /admin/settings: `emails` se combina con lo guardado en el servidor. */
+export type StoreSettingsInput = Partial<Omit<StoreSettings, 'emails'>> & { emails?: Partial<EmailSettings> };
 
 export interface TenantAdminView {
   id: string;
@@ -332,6 +336,89 @@ export interface PaymentSettingsInput {
   mpAccessToken?: string | null;
   mpPublicKey?: string | null;
   mpWebhookSecret?: string | null;
+}
+
+// ---------- Emails ----------
+
+export interface EmailSettings {
+  /** false: no se mandan emails a las clientas (los avisos al comercio siguen). */
+  enabled: boolean;
+  senderName: string | null;
+  /** Solo se usa si su dominio es de la tienda y está verificado en el proveedor. */
+  fromAddress: string | null;
+  replyTo: string | null;
+  logoUrl: string | null;
+  /** Color de botones y detalles, en hex (#RRGGBB). */
+  accentColor: string;
+  /** Hasta 10 direcciones; vacío = email de contacto. */
+  adminRecipients: string[];
+  notifyAdminOnOrder: boolean;
+}
+
+export type EmailType =
+  | 'order-received-transfer'
+  | 'order-paid'
+  | 'order-shipped'
+  | 'order-delivered'
+  | 'order-cancelled'
+  | 'order-expired'
+  | 'admin-new-order'
+  | 'welcome'
+  | 'test';
+
+export const EMAIL_TYPE_LABELS: Record<EmailType, string> = {
+  'order-received-transfer': 'Pedido recibido (transferencia)',
+  'order-paid': 'Pago confirmado',
+  'order-shipped': 'Pedido enviado',
+  'order-delivered': 'Pedido entregado',
+  'order-cancelled': 'Pedido cancelado',
+  'order-expired': 'Reserva vencida',
+  'admin-new-order': 'Aviso de pedido nuevo (al comercio)',
+  welcome: 'Bienvenida',
+  test: 'Email de prueba',
+};
+
+export type EmailStatus = 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
+
+export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
+  PENDING: 'Pendiente',
+  SENT: 'Enviado',
+  FAILED: 'Falló',
+  SKIPPED: 'No enviado',
+};
+
+export interface EmailLogEntry {
+  id: string;
+  type: EmailType | string;
+  orderId: string | null;
+  orderNumber: string | null;
+  to: string;
+  subject: string;
+  status: EmailStatus;
+  error: string | null;
+  attempts: number;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface EmailLogParams {
+  orderId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface EmailPreview {
+  subject: string;
+  html: string;
+  text: string;
+  /** Remitente con el que saldría el email ("Nombre <direccion>"). */
+  from: string;
+}
+
+export interface TestEmailResult {
+  status: EmailStatus;
+  error: string | null;
+  from: string;
 }
 
 // ---------- Usuarios ----------

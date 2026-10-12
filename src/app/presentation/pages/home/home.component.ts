@@ -12,6 +12,7 @@ import { CheckoutModalComponent } from '../../components/checkout-modal/checkout
 import { FooterComponent } from '../../components/footer/footer.component';
 import { AccountModalComponent } from '../../components/account-modal/account-modal.component';
 import { CheckoutFacade } from '../../../application/checkout.facade';
+import { AccountFacade } from '../../../application/account.facade';
 
 @Component({
   selector: 'app-home',
@@ -70,6 +71,7 @@ export class HomeComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private checkout = inject(CheckoutFacade);
+  private account = inject(AccountFacade);
 
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
@@ -78,8 +80,16 @@ export class HomeComponent implements OnInit {
     // Vuelta desde Mercado Pago: /?order=MLK-123456&payment=success|pending|failure
     const params = this.route.snapshot.queryParamMap;
     const orderNumber = params.get('order');
-    if (!orderNumber) return;
-    this.checkout.handlePaymentReturn(orderNumber, params.get('payment'));
+    // Link de los emails de pedido: /?pedido=MLK-123456&email=...
+    const trackNumber = params.get('pedido');
+    const trackEmail = params.get('email');
+    if (orderNumber) {
+      this.checkout.handlePaymentReturn(orderNumber, params.get('payment'));
+    } else if (trackNumber && trackEmail) {
+      this.account.openTracking(trackNumber, trackEmail);
+    } else {
+      return;
+    }
     void this.router.navigate([], { queryParams: {}, replaceUrl: true });
   }
 }

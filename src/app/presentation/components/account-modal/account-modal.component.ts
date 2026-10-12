@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AccountFacade } from '../../../application/account.facade';
@@ -140,6 +140,16 @@ export class AccountModalComponent {
   password = '';
   name = '';
   orderNumber = '';
+
+  constructor() {
+    // Si el seguimiento se abrió desde el link de un email, el formulario queda completo.
+    effect(() => {
+      const prefill = this.account.trackPrefill();
+      if (!prefill) return;
+      this.orderNumber = prefill.orderNumber;
+      this.email = prefill.email;
+    });
+  }
 
   statusLabel(status: OrderStatus): string {
     return ORDER_STATUS_LABELS[status];

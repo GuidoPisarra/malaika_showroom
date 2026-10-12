@@ -18,6 +18,8 @@ export class AccountFacade {
   readonly error = signal<string | null>(null);
   readonly orders = signal<Order[]>([]);
   readonly trackedOrder = signal<Order | null>(null);
+  /** Datos con los que se abrió el seguimiento desde el link de un email. */
+  readonly trackPrefill = signal<{ orderNumber: string; email: string } | null>(null);
 
   readonly user = this.auth.user;
 
@@ -54,6 +56,13 @@ export class AccountFacade {
   track(orderNumber: string, email: string): void {
     this.trackedOrder.set(null);
     this.run(this.ordersApi.track(orderNumber.trim(), email.trim()), (order) => this.trackedOrder.set(order), 'No encontramos un pedido con esos datos.');
+  }
+
+  /** Link de los emails: /?pedido=MLK-123456&email=... abre el seguimiento ya buscado. */
+  openTracking(orderNumber: string, email: string): void {
+    this.trackPrefill.set({ orderNumber, email });
+    this.open('track');
+    this.track(orderNumber, email);
   }
 
   private afterLogin(): void {

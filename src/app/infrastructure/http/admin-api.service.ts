@@ -10,6 +10,10 @@ import {
   CouponInput,
   CreateAdminInput,
   Dashboard,
+  EmailLogEntry,
+  EmailLogParams,
+  EmailPreview,
+  EmailType,
   LookPreset,
   LookPresetInput,
   OrderListParams,
@@ -22,8 +26,9 @@ import {
   PublicStore,
   ShowroomZone,
   StockUpdate,
-  StoreSettings,
+  StoreSettingsInput,
   TenantAdminView,
+  TestEmailResult,
   UploadFolder,
   UploadedImage,
 } from '../../domain/admin/admin.models';
@@ -168,7 +173,7 @@ export class AdminApiService {
     return this.get('/settings');
   }
 
-  updateSettings(settings: Partial<StoreSettings>): Observable<TenantAdminView> {
+  updateSettings(settings: StoreSettingsInput): Observable<TenantAdminView> {
     return this.send('PATCH', '/settings', settings);
   }
 
@@ -178,6 +183,19 @@ export class AdminApiService {
 
   updatePaymentSettings(input: PaymentSettingsInput): Observable<PaymentSettings> {
     return this.send('PUT', '/payment-settings', input);
+  }
+
+  // Emails
+  emails(query: EmailLogParams): Observable<Page<EmailLogEntry>> {
+    return this.get('/emails', query);
+  }
+
+  emailPreview(type: EmailType): Observable<EmailPreview> {
+    return this.get(`/emails/preview/${encodeURIComponent(type)}`);
+  }
+
+  sendTestEmail(to: string): Observable<TestEmailResult> {
+    return this.send('POST', '/emails/test', { to });
   }
 
   // Usuarios

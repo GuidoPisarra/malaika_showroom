@@ -5,6 +5,9 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
   AdminOrder,
+  EMAIL_STATUS_LABELS,
+  EmailLogEntry,
+  EmailStatus,
   ORDER_STATUS_LABELS,
   ORDER_TRANSITIONS,
   OrderStatus,
@@ -15,6 +18,13 @@ import { apiErrorMessage } from '../../../infrastructure/http/api.config';
 import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 import { LoadingComponent, StatusBadgeComponent, UI } from '../shared/admin-ui';
 import { OrdersListPage } from './orders-list.page';
+
+const EMAIL_STATUS_STYLES: Record<EmailStatus, string> = {
+  SENT: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  FAILED: 'bg-rose-50 text-rose-700 border-rose-200',
+  PENDING: 'bg-amber-50 text-amber-800 border-amber-200',
+  SKIPPED: 'bg-stone-100 text-stone-600 border-stone-300',
+};
 
 const ACTION_LABELS: Record<OrderStatus, string> = {
   PENDING_PAYMENT: 'Pendiente de pago',
@@ -177,6 +187,43 @@ const ACTION_LABELS: Record<OrderStatus, string> = {
                 <p class="text-xs text-stone-500">La reserva vence el {{ o.expiresAt | date: 'dd/MM/yyyy HH:mm' }}</p>
               }
             </section>
+
+            <section class="${UI.card} p-4">
+              <h3 class="mb-2 font-sans text-sm font-semibold text-stone-900 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-lg text-amber-700">mail</span> Emails
+              </h3>
+              @if (emailsError()) {
+                <p class="text-sm text-rose-700">{{ emailsError() }}</p>
+              } @else if (emails() === null) {
+                <p class="text-sm text-stone-400">Cargando emails…</p>
+              } @else {
+                <ul class="divide-y divide-stone-100">
+                  @for (e of emails(); track e.id) {
+                    <li class="flex items-start gap-3 py-2.5">
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium" [title]="e.subject">{{ e.subject }}</p>
+                        <p class="truncate text-xs text-stone-500">Para {{ e.to }} · {{ (e.sentAt ?? e.createdAt) | date: 'dd/MM/yyyy HH:mm' }}</p>
+                        @if (e.status === 'FAILED' && e.error) {
+                          <p class="mt-0.5 line-clamp-2 text-xs text-rose-700">{{ e.error }}</p>
+                        }
+                      </div>
+                      <span
+                        class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                        [class]="emailStatusStyles[e.status]"
+                        [attr.title]="e.error || null"
+                      >
+                        @if (e.status === 'FAILED') {
+                          <span class="material-symbols-outlined text-sm">error</span>
+                        }
+                        {{ emailStatusLabels[e.status] }}
+                      </span>
+                    </li>
+                  } @empty {
+                    <li class="py-1 text-sm text-stone-400">Todavía no se mandaron emails de este pedido.</li>
+                  }
+                </ul>
+              }
+            </section>
           }
         </div>
       </aside>
@@ -193,11 +240,16 @@ export class OrderDetailDrawer {
 
   readonly actionLabels = ACTION_LABELS;
   readonly paymentLabels = PAYMENT_METHOD_LABELS;
+  readonly emailStatusLabels = EMAIL_STATUS_LABELS;
+  readonly emailStatusStyles = EMAIL_STATUS_STYLES;
   readonly order = signal<AdminOrder | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
+  /** null mientras carga. */
+  readonly emails = signal<EmailLogEntry[] | null>(null);
+  readonly emailsError = signal<string | null>(null);
   readonly transitions = computed(() => {
     const o = this.order();
     return o ? ORDER_TRANSITIONS[o.status] : [];
@@ -206,6 +258,7 @@ export class OrderDetailDrawer {
   adminNotes = '';
 
   private request?: Subscription;
+  private emailsRequest?: Subscription;
 
   constructor() {
     effect(() => this.load(this.id()));
@@ -217,17 +270,30 @@ export class OrderDetailDrawer {
     this.error.set(null);
     this.success.set(null);
     this.loading.set(true);
+    this.emailsRequest?.unsubscribe();
+    this.emails.set(null);
+    this.emailsError.set(null);
     this.request = this.api.order(id).subscribe({
       next: (o) => {
         this.order.set(o);
         this.trackingNumber = o.trackingNumber ?? '';
         this.adminNotes = o.adminNotes ?? '';
         this.loading.set(false);
+        this.loadEmails(o.id);
       },
       error: (err: unknown) => {
         this.error.set(apiErrorMessage(err, 'No encontramos el pedido.'));
         this.loading.set(false);
       },
+    });
+  }
+
+  private loadEmails(orderId: string): void {
+    this.emailsRequest?.unsubscribe();
+    this.emailsError.set(null);
+    this.emailsRequest = this.api.emails({ orderId, pageSize: 50 }).subscribe({
+      next: (page) => this.emails.set(page.items),
+      error: (err: unknown) => this.emailsError.set(apiErrorMessage(err, 'No pudimos cargar los emails.')),
     });
   }
 
@@ -254,6 +320,8 @@ export class OrderDetailDrawer {
           this.list?.orderUpdated(updated);
           this.saving.set(false);
           this.success.set(`Listo: el pedido quedó como “${ORDER_STATUS_LABELS[updated.status]}”.`);
+          // El email del cambio de estado sale en segundo plano: lo buscamos un toque después.
+          setTimeout(() => this.order()?.id === updated.id && this.loadEmails(updated.id), 1500);
         },
         error: (err: unknown) => {
           this.error.set(apiErrorMessage(err));
