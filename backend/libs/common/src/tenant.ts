@@ -29,6 +29,38 @@ export interface ShippingZone {
   eta: string;
 }
 
+/** Cómo se ven y a quién se mandan los emails del comercio. */
+export interface EmailSettings {
+  /** Apaga todos los emails a clientas (los avisos al comercio siguen). */
+  enabled: boolean;
+  /** Nombre del remitente. null usa el nombre del comercio. */
+  senderName: string | null;
+  /**
+   * Dirección del remitente. Tiene que ser de un dominio verificado en el
+   * proveedor de emails; null usa la de la plataforma (EMAIL_FROM).
+   */
+  fromAddress: string | null;
+  /** A dónde responden las clientas. null usa contactEmail. */
+  replyTo: string | null;
+  logoUrl: string | null;
+  /** Color de botones y detalles. */
+  accentColor: string;
+  /** Quiénes reciben el aviso de cada pedido nuevo. Vacío usa contactEmail. */
+  adminRecipients: string[];
+  notifyAdminOnOrder: boolean;
+}
+
+export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
+  enabled: true,
+  senderName: null,
+  fromAddress: null,
+  replyTo: null,
+  logoUrl: null,
+  accentColor: '#1C1917',
+  adminRecipients: [],
+  notifyAdminOnOrder: true,
+};
+
 /** Reglas comerciales configurables por cada comercio. Montos en la moneda del comercio. */
 export interface StoreSettings {
   currency: string;
@@ -46,6 +78,7 @@ export interface StoreSettings {
   storefrontUrl: string;
   contactEmail: string | null;
   contactPhone: string | null;
+  emails: EmailSettings;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
@@ -61,6 +94,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   storefrontUrl: 'http://localhost:4200',
   contactEmail: null,
   contactPhone: null,
+  emails: DEFAULT_EMAIL_SETTINGS,
 };
 
 /** Comercio resuelto por el gateway y adjunto a cada mensaje. */

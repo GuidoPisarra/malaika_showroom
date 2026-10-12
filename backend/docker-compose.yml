@@ -17,6 +17,7 @@ x-service: &service
     CATALOG_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_catalog
     ORDERS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_orders
     PAYMENTS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_payments
+    NOTIFICATIONS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_notifications
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
@@ -78,6 +79,10 @@ services:
   payments-service:
     <<: *service
     build: { context: ., args: { SERVICE: payments-service } }
+
+  notifications-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: notifications-service } }
 
   api-gateway:
     <<: *service

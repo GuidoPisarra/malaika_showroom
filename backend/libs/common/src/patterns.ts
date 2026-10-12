@@ -68,7 +68,19 @@ export const PAYMENTS = {
   updateSettings: 'payments.settings.update',
 } as const;
 
+export const NOTIFICATIONS = {
+  listEmails: 'notifications.emails.list',
+  sendTest: 'notifications.emails.test',
+  preview: 'notifications.emails.preview',
+} as const;
+
 export const EVENTS = {
+  /** Se creó un pedido y se reservó su stock. Payload: OrderEvent */
+  orderCreated: 'events.order.created',
+  /** El comercio cambió el estado de un pedido (en preparación, enviado, entregado). Payload: OrderStatusChangedEvent */
+  orderStatusChanged: 'events.order.status-changed',
+  /** Una clienta se creó una cuenta. Payload: UserRegisteredEvent */
+  userRegistered: 'events.user.registered',
   /** Un pedido quedó pagado. Payload: OrderEvent */
   orderPaid: 'events.order.paid',
   /** Un pedido se canceló o venció sin pago: hay que liberar stock. Payload: OrderEvent */
@@ -83,6 +95,24 @@ export interface OrderEvent {
   tenantId: string;
   orderId: string;
   orderNumber: string;
+}
+
+/** Por qué se canceló un pedido: define qué email recibe la clienta. */
+export type CancelReason = 'expired' | 'merchant' | 'payment-init-failed';
+
+export interface OrderCancelledEvent extends OrderEvent {
+  reason?: CancelReason;
+}
+
+export interface OrderStatusChangedEvent extends OrderEvent {
+  status: 'PREPARING' | 'SHIPPED' | 'DELIVERED';
+}
+
+export interface UserRegisteredEvent {
+  tenantId: string;
+  userId: string;
+  email: string;
+  name: string;
 }
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'in_process';

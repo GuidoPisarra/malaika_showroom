@@ -285,6 +285,43 @@ export class ShippingZoneDto {
   eta: string;
 }
 
+export class EmailSettingsDto {
+  @IsOptional() @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  senderName?: string | null;
+
+  /** Tiene que pertenecer a un dominio verificado en el proveedor de email. */
+  @IsOptional() @IsEmail()
+  fromAddress?: string | null;
+
+  @IsOptional() @IsEmail()
+  replyTo?: string | null;
+
+  @IsOptional() @IsUrl({ require_tld: false, require_protocol: true })
+  logoUrl?: string | null;
+
+  @IsOptional() @IsHexColor()
+  accentColor?: string;
+
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsEmail({}, { each: true })
+  adminRecipients?: string[];
+
+  @IsOptional() @IsBoolean()
+  notifyAdminOnOrder?: boolean;
+}
+
+export class EmailLogQuery extends PageQuery {
+  @IsOptional() @IsString() @MaxLength(60)
+  orderId?: string;
+}
+
+export class TestEmailDto {
+  @IsEmail()
+  to: string;
+}
+
 export class StoreSettingsDto {
   @IsOptional() @IsString() @MaxLength(3)
   currency?: string;
@@ -321,6 +358,9 @@ export class StoreSettingsDto {
 
   @IsOptional() @IsString() @MaxLength(40)
   contactPhone?: string | null;
+
+  @IsOptional() @ValidateNested() @Type(() => EmailSettingsDto)
+  emails?: EmailSettingsDto;
 }
 
 export class PaymentSettingsDto {

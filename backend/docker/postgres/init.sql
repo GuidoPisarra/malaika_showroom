@@ -3,3 +3,4 @@ CREATE DATABASE malaika_identity;
 CREATE DATABASE malaika_catalog;
 CREATE DATABASE malaika_orders;
 CREATE DATABASE malaika_payments;
+CREATE DATABASE malaika_notifications;

@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccountController } from './account/account.controller.js';
 import { AdminCatalogController } from './admin/admin-catalog.controller.js';
 import { AdminSalesController } from './admin/admin-sales.controller.js';
+import { AdminEmailsController } from './admin/admin-emails.controller.js';
 import { AdminStoreController } from './admin/admin-store.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthGuard } from './auth/auth.guard.js';
@@ -36,6 +37,7 @@ import { WebhooksController } from './webhooks/webhooks.controller.js';
     AdminCatalogController,
     AdminSalesController,
     AdminStoreController,
+    AdminEmailsController,
     PlatformController,
     WebhooksController,
     UploadsController,

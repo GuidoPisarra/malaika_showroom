@@ -1,0 +1,49 @@
+// Registro de emails enviados por cada comercio.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model EmailLog {
+  id          String      @id @default(cuid())
+  tenantId    String
+  /// order-received, order-paid, order-shipped, admin-new-order, welcome, test...
+  type        String
+  /// Evita mandar dos veces el mismo email (por ejemplo, si RabbitMQ reentrega un evento).
+  dedupeKey   String
+  orderId     String?
+  orderNumber String?
+  to          String
+  subject     String
+  /// Remitente, respuesta y contenido tal como se mandaron, para poder reintentar.
+  fromHeader  String
+  replyTo     String?
+  html        String
+  text        String
+  status      EmailStatus @default(PENDING)
+  provider    String?
+  providerId  String?
+  error       String?
+  attempts    Int         @default(0)
+  sentAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, orderId])
+  @@index([status, attempts])
+}

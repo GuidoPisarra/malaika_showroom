@@ -14,7 +14,9 @@ export class StorefrontController {
   /** Nombre y reglas comerciales del comercio (envío, descuentos, transferencia). */
   @Get('store')
   store(@CurrentTenant() tenant: TenantContext) {
-    return { id: tenant.id, slug: tenant.slug, name: tenant.name, settings: tenant.settings };
+    // La configuración de emails (destinatarios internos, remitente) no es pública.
+    const { emails: _emails, ...settings } = tenant.settings;
+    return { id: tenant.id, slug: tenant.slug, name: tenant.name, settings };
   }
 
   /** Costo de envío para un código postal o provincia, según las zonas del comercio. */

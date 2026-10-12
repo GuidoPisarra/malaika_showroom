@@ -11,14 +11,14 @@ Cada comercio tiene su propio catálogo, stock, cupones, pedidos, clientas, admi
                  │  resuelve el comercio    │  por dominio (Host)
                  └────────────┬─────────────┘
                               │ RabbitMQ (exchange "malaika", tipo topic)
-     ┌──────────────┬─────────┴────────┬──────────────────┐
-     ▼              ▼                  ▼                  ▼
- identity       catalog             orders            payments
- comercios      productos, stock,   cupones,          Mercado Pago
- usuarios, JWT  looks, showroom     pedidos           Checkout Pro
-     │              │  ▲ Redis          │                  │
-     ▼              ▼                   ▼                  ▼
-  PostgreSQL: una base por servicio (malaika_identity, _catalog, _orders, _payments)
+     ┌──────────────┬─────────┴────────┬──────────────────┬───────────────┐
+     ▼              ▼                  ▼                  ▼               ▼
+ identity       catalog             orders            payments       notifications
+ comercios      productos, stock,   cupones,          Mercado Pago   emails (Resend
+ usuarios, JWT  looks, showroom     pedidos           Checkout Pro   o SMTP)
+     │              │  ▲ Redis          │                  │               │
+     ▼              ▼                   ▼                  ▼               ▼
+  PostgreSQL: una base por servicio (malaika_identity, _catalog, _orders, _payments, _notifications)
 ```
 
 - **NestJS 12** (ESM) con microservicios sobre **RabbitMQ**. Cada servicio enlaza su cola al exchange con los patrones que atiende, así que el gateway publica sin saber quién responde.
@@ -27,6 +27,7 @@ Cada comercio tiene su propio catálogo, stock, cupones, pedidos, clientas, admi
 - **Eventos de dominio** (`libs/common/src/patterns.ts`):
   - `events.order.paid` / `events.order.cancelled`: catalog confirma o libera el stock reservado.
   - `events.payment.status-changed`: orders marca el pedido como pagado.
+  - `events.order.created`, `events.order.status-changed`, `events.user.registered`: notifications manda los emails.
 
 ### Multi-comercio
 
@@ -64,6 +65,30 @@ El panel sube las fotos a `POST /api/admin/uploads?folder=products|looks|showroo
 
 - `STORAGE_DRIVER=s3` (recomendado en producción): AWS S3, Cloudflare R2, DigitalOcean Spaces o MinIO. Completá `S3_*` y que `S3_PUBLIC_URL` apunte al dominio público del bucket o de la CDN.
 - `STORAGE_DRIVER=local`: se guardan en `UPLOADS_DIR` y el gateway las sirve en `/api/uploads`. En `docker-compose.yml` es el volumen `uploads`, que conviene incluir en los backups.
+
+### Emails
+
+`notifications-service` escucha los eventos y manda:
+
+| Cuándo | A quién |
+| --- | --- |
+| Pedido por transferencia creado (con los datos bancarios y el plazo) | Clienta y comercio |
+| Pago confirmado | Clienta y comercio |
+| Pedido enviado (con el número de seguimiento) y entregado | Clienta |
+| Pedido cancelado por el comercio o vencido sin pago | Clienta |
+| Cuenta creada | Clienta |
+
+Cada email se guarda antes de mandarse (`EmailLog`), con una clave por pedido y tipo para no mandarlo dos veces si un evento llega repetido. Los que fallan se reintentan cada 10 minutos, hasta 5 veces en dos días. El link "Ver mi pedido" abre el seguimiento en la tienda (`/?pedido=...&email=...`).
+
+Cada comercio configura desde el panel el nombre del remitente, la dirección para respuestas, el logo, el color, quién recibe los avisos de pedidos nuevos (si no carga a nadie, va al email de contacto) y si se mandan o no los emails a las clientas.
+
+Proveedor (`EMAIL_DRIVER`):
+
+- `resend` (recomendado): creá una cuenta en [resend.com](https://resend.com), verificá el dominio desde el que vas a mandar (registros DNS SPF y DKIM) y completá `RESEND_API_KEY` y `EMAIL_FROM` (por ejemplo `"Tienda" <no-reply@tudominio.com>`).
+- `smtp`: cualquier servidor SMTP con `SMTP_URL`.
+- `log`: no manda nada, anota cada email en el log y guarda el HTML en `EMAIL_OUTBOX_DIR`. Es lo que se usa si no hay ni `RESEND_API_KEY` ni `SMTP_URL`.
+
+Por defecto los emails salen desde la dirección de `EMAIL_FROM` con el nombre del comercio. Si un comercio quiere su propia dirección (`ventas@sutienda.com`), su dominio tiene que estar verificado en Resend y figurar entre los dominios del comercio; si no, se usa la dirección de la plataforma.
 
 ## Desarrollo local
 
@@ -142,8 +167,11 @@ Todas las rutas llevan el prefijo `/api`. 🔓 pública · 👤 clienta logueada
 | GET, POST, PATCH, DELETE | `/admin/coupons[/:id]` | Cupones con vigencia, mínimo de compra y límite de usos |
 | GET | `/admin/orders`, `/admin/orders/:id` | Filtros: `status, search, page, pageSize` |
 | PATCH | `/admin/orders/:id/status` | `PAID`, `PREPARING`, `SHIPPED`, `DELIVERED`, `CANCELLED` (+ `trackingNumber`) |
-| GET, PATCH | `/admin/settings` | Reglas del comercio, incluidas las zonas de envío |
+| GET, PATCH | `/admin/settings` | Reglas del comercio, incluidas las zonas de envío y los emails |
 | GET, PUT | `/admin/payment-settings` | Credenciales de Mercado Pago |
+| GET | `/admin/emails?orderId=&page=` | Emails enviados, con su estado |
+| GET | `/admin/emails/preview/:type` | Vista previa de una plantilla con datos de ejemplo |
+| POST | `/admin/emails/test` | `{ to }` Manda un email de prueba con la configuración actual |
 | GET, POST | `/admin/users` | Clientas y admins |
 
 **Plataforma** (👑)

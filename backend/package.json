@@ -19,7 +19,8 @@
     "start:catalog": "npm run start:dev -w @malaika/catalog-service",
     "start:orders": "npm run start:dev -w @malaika/orders-service",
     "start:payments": "npm run start:dev -w @malaika/payments-service",
-    "dev": "npm run build -w @malaika/common && concurrently -n gateway,identity,catalog,orders,payments -c cyan,magenta,green,yellow,blue \"npm:start:gateway\" \"npm:start:identity\" \"npm:start:catalog\" \"npm:start:orders\" \"npm:start:payments\"",
+    "start:notifications": "npm run start:dev -w @malaika/notifications-service",
+    "dev": "npm run build -w @malaika/common && concurrently -n gateway,identity,catalog,orders,payments,notifications -c cyan,magenta,green,yellow,blue,gray \"npm:start:gateway\" \"npm:start:identity\" \"npm:start:catalog\" \"npm:start:orders\" \"npm:start:payments\" \"npm:start:notifications\"",
     "test": "npm run test -ws --if-present",
     "typecheck": "npm run typecheck -ws --if-present"
   },

@@ -12,6 +12,7 @@ COPY apps/identity-service/package.json apps/identity-service/
 COPY apps/catalog-service/package.json apps/catalog-service/
 COPY apps/orders-service/package.json apps/orders-service/
 COPY apps/payments-service/package.json apps/payments-service/
+COPY apps/notifications-service/package.json apps/notifications-service/
 RUN npm ci
 COPY . .
 RUN npm run build

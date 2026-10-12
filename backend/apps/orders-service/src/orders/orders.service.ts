@@ -19,6 +19,7 @@ import { Prisma, type Coupon } from '../generated/prisma/client.js';
 import { CouponsService } from '../coupons/coupons.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OrderWithItems, toOrderView } from './order.mapper.js';
+import type { CancelReason, OrderStatusChangedEvent } from '@malaika/common';
 import type { CatalogProduct, CreateOrderInput, OrderStatus } from './order.types.js';
 
 const MAX_QTY_PER_LINE = 20;
@@ -157,6 +158,7 @@ export class OrdersService {
       await this.discard(order);
       throw err;
     }
+    await publish(this.broker, EVENTS.orderCreated, { tenantId: tenant.id, orderId: order.id, orderNumber: order.orderNumber });
 
     // 5. Cobro.
     if (input.paymentMethod === 'BANK_TRANSFER') {
@@ -178,7 +180,7 @@ export class OrdersService {
       });
       return { order: toOrderView(order), checkoutUrl: checkout.checkoutUrl, bankTransfer: null };
     } catch (err) {
-      await this.cancel(order, 'No se pudo iniciar el pago');
+      await this.cancel(order, 'No se pudo iniciar el pago', 'payment-init-failed');
       throw err;
     }
   }
@@ -249,17 +251,27 @@ export class OrdersService {
     }
 
     if (input.status === 'CANCELLED' && from !== 'CANCELLED') {
-      await this.cancel(order, 'Cancelado por el comercio');
+      await this.cancel(order, 'Cancelado por el comercio', 'merchant');
     } else if (input.status === 'PAID' && from === 'PENDING_PAYMENT') {
       await this.markPaid(order, 'manual');
-    } else if (from !== input.status) {
-      await this.prisma.order.update({ where: { id: order.id }, data: { status: input.status } });
     }
+    // El número de seguimiento se guarda antes de avisar el envío, así el email lo incluye.
     if (input.trackingNumber !== undefined || input.adminNotes !== undefined) {
       await this.prisma.order.update({
         where: { id: order.id },
         data: { trackingNumber: input.trackingNumber, adminNotes: input.adminNotes },
       });
+    }
+    if (from !== input.status && input.status !== 'CANCELLED' && input.status !== 'PAID') {
+      await this.prisma.order.update({ where: { id: order.id }, data: { status: input.status } });
+      if (input.status !== 'PENDING_PAYMENT') {
+        await publish(this.broker, EVENTS.orderStatusChanged, {
+          tenantId: order.tenantId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: input.status,
+        } satisfies OrderStatusChangedEvent);
+      }
     }
     return this.adminGet(input.tenantId, input.id);
   }
@@ -288,7 +300,7 @@ export class OrdersService {
       include: { items: true },
       take: 200,
     });
-    for (const order of expired) await this.cancel(order, 'Venció sin pago');
+    for (const order of expired) await this.cancel(order, 'Venció sin pago', 'expired');
     return expired.length;
   }
 
@@ -323,11 +335,11 @@ export class OrdersService {
     await publish(this.broker, EVENTS.orderPaid, { tenantId: order.tenantId, orderId: order.id, orderNumber: order.orderNumber });
   }
 
-  private async cancel(order: OrderWithItems, reason: string) {
+  private async cancel(order: OrderWithItems, note: string, reason: CancelReason) {
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: order.id },
-        data: { status: 'CANCELLED', cancelledAt: new Date(), adminNotes: order.adminNotes ?? reason },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), adminNotes: order.adminNotes ?? note },
       });
       if (order.couponCode) {
         await tx.coupon.updateMany({
@@ -340,6 +352,7 @@ export class OrdersService {
       tenantId: order.tenantId,
       orderId: order.id,
       orderNumber: order.orderNumber,
+      reason,
     });
   }
 

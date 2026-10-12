@@ -1,5 +1,18 @@
-import { AuthTokens, JwtPayload, badRequest, conflict, forbidden, notFound, unauthorized } from '@malaika/common';
-import { Injectable } from '@nestjs/common';
+import {
+  AuthTokens,
+  BROKER,
+  EVENTS,
+  JwtPayload,
+  badRequest,
+  conflict,
+  forbidden,
+  notFound,
+  publish,
+  unauthorized,
+} from '@malaika/common';
+import type { UserRegisteredEvent } from '@malaika/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
@@ -35,6 +48,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    @Inject(BROKER) private readonly broker: ClientProxy,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthTokens> {
@@ -55,6 +69,12 @@ export class AuthService {
         role: 'CUSTOMER',
       },
     });
+    await publish(this.broker, EVENTS.userRegistered, {
+      tenantId: input.tenantId,
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    } satisfies UserRegisteredEvent);
     return this.issueTokens(user);
   }
 

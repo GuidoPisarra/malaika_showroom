@@ -1,9 +1,13 @@
-import { DEFAULT_STORE_SETTINGS, StoreSettings, TenantContext } from '@malaika/common';
+import { DEFAULT_EMAIL_SETTINGS, DEFAULT_STORE_SETTINGS, StoreSettings, TenantContext } from '@malaika/common';
 import type { Tenant } from '../generated/prisma/client.js';
 
 export function mergeSettings(stored: unknown, patch: Partial<StoreSettings> = {}): StoreSettings {
-  const base = { ...DEFAULT_STORE_SETTINGS, ...((stored ?? {}) as Partial<StoreSettings>) };
-  return { ...base, ...stripUndefined(patch) };
+  const saved = (stored ?? {}) as Partial<StoreSettings>;
+  const base = { ...DEFAULT_STORE_SETTINGS, ...saved };
+  const merged = { ...base, ...stripUndefined(patch) };
+  // Los emails se combinan campo por campo, así un comercio viejo recibe los valores nuevos por defecto.
+  merged.emails = { ...DEFAULT_EMAIL_SETTINGS, ...saved.emails, ...stripUndefined(patch.emails ?? {}) };
+  return merged;
 }
 
 function stripUndefined<T extends object>(obj: T): Partial<T> {
