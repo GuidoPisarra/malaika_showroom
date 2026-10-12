@@ -78,6 +78,7 @@ export class LookStylistDomainService {
     const list: Product[] = [];
     if (slots.dress) list.push(slots.dress);
     if (slots.top) list.push(slots.top);
+    if (slots.outer) list.push(slots.outer);
     if (slots.bottom) list.push(slots.bottom);
     if (slots.shoes) list.push(slots.shoes);
     if (slots.accessory) list.push(slots.accessory);

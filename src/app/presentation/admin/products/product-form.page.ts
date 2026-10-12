@@ -8,6 +8,15 @@ import { AdminApiService } from '../../../infrastructure/http/admin-api.service'
 import { apiErrorMessage } from '../../../infrastructure/http/api.config';
 import { LoadingComponent, UI, intOrNull } from '../shared/admin-ui';
 import { ImageUploadComponent } from '../shared/image-upload.component';
+import { GarmentShape, GarmentTexture, ProductCategory } from '../../../domain/catalog/models/product.model';
+import {
+  SHAPES_BY_SLOT,
+  SHAPE_LABELS,
+  TEXTURE_LABELS,
+  resolveSilhouette,
+} from '../../../domain/look-builder/services/garment-silhouette';
+import { MannequinFigureComponent } from '../../components/mannequin-studio/mannequin-figure.component';
+import { DressableItem } from '../../components/mannequin-studio/mannequin-garments';
 
 type ColorGroup = FormGroup<{ name: FormControl<string>; hex: FormControl<string> }>;
 type StockMode = 'general' | 'variants';
@@ -23,6 +32,7 @@ const SLOTS: { value: ProductSlot; label: string }[] = [
   { value: 'top', label: 'Parte de arriba' },
   { value: 'bottom', label: 'Parte de abajo' },
   { value: 'dress', label: 'Vestido / enterito' },
+  { value: 'outer', label: 'Abrigo o chaleco (va encima)' },
   { value: 'shoes', label: 'Calzado' },
   { value: 'accessory', label: 'Accesorio' },
 ];
@@ -36,7 +46,7 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
 
 @Component({
   selector: 'admin-product-form-page',
-  imports: [ReactiveFormsModule, RouterLink, LoadingComponent, ImageUploadComponent],
+  imports: [ReactiveFormsModule, RouterLink, LoadingComponent, ImageUploadComponent, MannequinFigureComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mb-6">
@@ -382,6 +392,50 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
             </label>
           </section>
 
+          <!-- Maniquí -->
+          <section class="${UI.card} p-5 space-y-4">
+            <div>
+              <h2 class="font-sans text-sm font-semibold text-stone-900">Cómo se ve en el maniquí</h2>
+              <p class="mt-1 text-xs text-stone-500">Se usa en el probador de la tienda. Si no elegís nada, se arma con la categoría y el primer color.</p>
+            </div>
+            <div class="mx-auto w-36 aspect-[1/2] rounded-xl bg-stone-50 border border-stone-100">
+              <app-mannequin-figure class="block w-full h-full" [slots]="mannequinPreview()" />
+            </div>
+            <div>
+              <label for="silhouetteShape" class="${UI.label}">Forma</label>
+              <select id="silhouetteShape" formControlName="silhouetteShape" class="${UI.input}">
+                <option value="">Automática ({{ shapeLabels[autoShape()] }})</option>
+                @for (shape of shapeOptions(); track shape) {
+                  <option [value]="shape">{{ shapeLabels[shape] }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label for="silhouetteColor" class="${UI.label}">Color en el maniquí</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  [value]="previewColor()"
+                  (input)="form.controls.silhouetteColor.setValue($any($event.target).value.toUpperCase())"
+                  class="h-10 w-12 shrink-0 cursor-pointer rounded-lg border border-stone-300 bg-white p-1"
+                  aria-label="Elegir color en el maniquí"
+                />
+                <input id="silhouetteColor" formControlName="silhouetteColor" class="${UI.input} font-mono uppercase" maxlength="7" placeholder="Primer color" />
+              </div>
+              @if (invalid('silhouetteColor')) {
+                <p class="mt-1 text-xs text-rose-700">Usá un código hex (#RRGGBB) o dejalo vacío.</p>
+              }
+            </div>
+            <div>
+              <label for="silhouetteTexture" class="${UI.label}">Tela</label>
+              <select id="silhouetteTexture" formControlName="silhouetteTexture" class="${UI.input}">
+                @for (t of textureOptions; track t) {
+                  <option [value]="t">{{ textureLabels[t] }}</option>
+                }
+              </select>
+            </div>
+          </section>
+
           <!-- AR -->
           <section class="${UI.card} p-5 space-y-4">
             <h2 class="font-sans text-sm font-semibold text-stone-900">Showroom AR</h2>
@@ -467,6 +521,9 @@ export class ProductFormPage {
     isTrending: [false],
     details: this.fb.array<FormControl<string>>([]),
     stock: new FormControl<number | null>(0, Validators.min(0)),
+    silhouetteShape: ['' as GarmentShape | ''],
+    silhouetteColor: ['', Validators.pattern(HEX_PATTERN)],
+    silhouetteTexture: ['solid' as GarmentTexture],
     arModelType: ['' as ArModelType | ''],
     arScale: new FormControl<number | null>(null, [Validators.min(0.1), Validators.max(5)]),
     active: [true],
@@ -476,6 +533,33 @@ export class ProductFormPage {
   readonly imagePreview = computed(() => (URL_PATTERN.test(this.imageValue() ?? '') ? this.imageValue() : ''));
   readonly sizes = toSignal(this.form.controls.sizes.valueChanges, { initialValue: [] as string[] });
   private readonly colorsValue = toSignal(this.form.controls.colors.valueChanges, { initialValue: [] as Partial<{ name: string; hex: string }>[] });
+
+  // ---------- Maniquí ----------
+  readonly shapeLabels = SHAPE_LABELS;
+  readonly textureLabels = TEXTURE_LABELS;
+  readonly textureOptions = Object.keys(TEXTURE_LABELS) as GarmentTexture[];
+  private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+  private readonly slotValue = computed(() => this.formValue().slot ?? 'accessory');
+  readonly shapeOptions = computed(() => SHAPES_BY_SLOT[this.slotValue()]);
+
+  /** Lo que se guarda y se dibuja: lo elegido o, si falta, lo que arma la tienda sola. */
+  private readonly dressable = computed<DressableItem>(() => {
+    const v = this.formValue();
+    const color = (v.silhouetteColor ?? '').trim();
+    return {
+      slot: v.slot ?? 'accessory',
+      category: (v.category ?? '').trim() as ProductCategory,
+      colors: (v.colors ?? []).map((c) => ({ name: c.name ?? '', hex: c.hex ?? '' })),
+      silhouette: {
+        svgType: (v.silhouetteShape || undefined) as GarmentShape,
+        colorHex: HEX_PATTERN.test(color) ? color : '',
+        texturePattern: v.silhouetteTexture ?? 'solid',
+      },
+    };
+  });
+  readonly autoShape = computed(() => resolveSilhouette({ ...this.dressable(), silhouette: null }).svgType);
+  readonly previewColor = computed(() => resolveSilhouette(this.dressable()).colorHex);
+  readonly mannequinPreview = computed(() => ({ [this.slotValue()]: this.dressable() }));
 
   // ---------- Stock ----------
   readonly stockMode = signal<StockMode>('general');
@@ -513,6 +597,11 @@ export class ProductFormPage {
     this.form.statusChanges.pipe(takeUntilDestroyed()).subscribe((status) => {
       if (status === 'VALID' && this.error() === INVALID_MSG) this.error.set(null);
     });
+    // Al cambiar el lugar en el maniquí, una forma que ya no corresponde vuelve a automática.
+    this.form.controls.slot.valueChanges.pipe(takeUntilDestroyed()).subscribe((slot) => {
+      const shape = this.form.controls.silhouetteShape.value;
+      if (shape && !SHAPES_BY_SLOT[slot].includes(shape)) this.form.controls.silhouetteShape.setValue('');
+    });
     effect(() => {
       const id = this.id();
       if (id) this.load(id);
@@ -545,6 +634,7 @@ export class ProductFormPage {
   }
 
   private fill(p: AdminProduct): void {
+    const silhouette = p.silhouette as Partial<{ svgType: GarmentShape; colorHex: string; texturePattern: GarmentTexture }> | undefined;
     this.gallery.clear();
     (p.gallery ?? []).forEach((url) => this.gallery.push(this.fb.control(url, Validators.pattern(URL_PATTERN))));
     this.colors.clear();
@@ -567,6 +657,9 @@ export class ProductFormPage {
       isNew: p.isNew,
       isTrending: p.isTrending,
       stock: p.variantStock ? 0 : p.stock,
+      silhouetteShape: silhouette?.svgType && SHAPES_BY_SLOT[p.slot ?? 'accessory'].includes(silhouette.svgType) ? silhouette.svgType : '',
+      silhouetteColor: typeof silhouette?.colorHex === 'string' && HEX_PATTERN.test(silhouette.colorHex) ? silhouette.colorHex.toUpperCase() : '',
+      silhouetteTexture: silhouette?.texturePattern && silhouette.texturePattern in TEXTURE_LABELS ? silhouette.texturePattern : 'solid',
       arModelType: p.arModelType ?? '',
       arScale: p.arScale ?? null,
       active: p.active,
@@ -578,7 +671,7 @@ export class ProductFormPage {
     this.form.markAsPristine();
   }
 
-  invalid(name: 'name' | 'category' | 'image' | 'price' | 'arScale'): boolean {
+  invalid(name: 'name' | 'category' | 'image' | 'price' | 'arScale' | 'silhouetteColor'): boolean {
     const c = this.form.controls[name];
     return c.invalid && (c.touched || c.dirty);
   }
@@ -700,6 +793,7 @@ export class ProductFormPage {
       isNew: v.isNew,
       isTrending: v.isTrending,
       details: v.details.map((d) => d.trim()).filter(Boolean),
+      silhouette: resolveSilhouette(this.dressable()),
       arModelType: v.arModelType || null,
       arScale,
       active: v.active,

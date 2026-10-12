@@ -8,6 +8,21 @@ export interface MannequinSlots {
   bottom?: Product;
   shoes?: Product;
   accessory?: Product;
+  /** Abrigo o chaleco, encima de la parte de arriba o del vestido. */
+  outer?: Product;
+}
+
+/** Pone la prenda en su lugar; un vestido saca la parte de arriba y la de abajo, y viceversa. */
+export function placeOnMannequin(slots: MannequinSlots, product: Product): MannequinSlots {
+  const next = { ...slots };
+  if (product.slot === 'dress') {
+    next.top = undefined;
+    next.bottom = undefined;
+  } else if (product.slot === 'top' || product.slot === 'bottom') {
+    next.dress = undefined;
+  }
+  next[product.slot] = product;
+  return next;
 }
 
 export interface LookCompatibilityScore {

@@ -1,6 +1,6 @@
 /** Modelos del panel del comercio (respuestas de /api/admin/*). Montos enteros en pesos. */
 
-import type { VariantStock } from '../catalog/models/product.model';
+import type { GarmentSilhouetteLayer, VariantStock } from '../catalog/models/product.model';
 import type { ShippingZone } from '../store/store-settings.model';
 
 export type { VariantStock } from '../catalog/models/product.model';
@@ -125,7 +125,7 @@ export interface Dashboard {
 
 // ---------- Productos ----------
 
-export type ProductSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress';
+export type ProductSlot = 'top' | 'bottom' | 'shoes' | 'accessory' | 'dress' | 'outer';
 export type ArModelType = 'hanger' | 'mannequin' | 'display-stand';
 
 export interface ProductColor {
@@ -186,6 +186,7 @@ export interface ProductInput {
   isTrending?: boolean;
   details?: string[];
   stock?: number;
+  silhouette?: GarmentSilhouetteLayer | null;
   arModelType?: ArModelType | null;
   arScale?: number | null;
   active?: boolean;
