@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CheckoutFacade } from '../../../application/checkout.facade';
 import { CartFacade } from '../../../application/cart.facade';
+import { ShippingFacade } from '../../../application/shipping.facade';
 import { StoreFacade } from '../../../application/store.facade';
+import { AR_PROVINCES } from '../../../domain/store/provinces';
 import { ORDER_STATUS_LABELS, OrderStatus } from '../../../domain/checkout/models/order.model';
 import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 
@@ -190,6 +192,22 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                   </div>
 
                   <div>
+                    <label for="ship-province" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
+                      Provincia *
+                    </label>
+                    <select
+                      id="ship-province"
+                      [ngModel]="checkoutFacade.shipping().provinceState"
+                      (ngModelChange)="checkoutFacade.updateShipping({ provinceState: $event })"
+                      class="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-700 shadow-xs"
+                    >
+                      @for (p of provinces; track p) {
+                        <option [value]="p">{{ p }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div class="sm:col-span-2">
                     <span class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
                       Ciudad y Código Postal *
                     </span>
@@ -213,6 +231,36 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                         class="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-700 shadow-xs"
                       />
                     </div>
+                  </div>
+
+                  <!-- Costo de envío según la zona -->
+                  <div class="sm:col-span-2 text-xs" aria-live="polite">
+                    @if (shippingFacade.isQuoting()) {
+                      <p class="text-stone-500 flex items-center gap-1.5">
+                        <span class="w-3 h-3 border-2 border-stone-400 border-t-transparent rounded-full animate-spin"></span>
+                        Calculando el envío...
+                      </p>
+                    } @else if (shippingFacade.quote(); as quote) {
+                      @if (quote.available) {
+                        <p class="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 flex items-center gap-2">
+                          <span class="material-symbols-outlined text-base text-emerald-700">local_shipping</span>
+                          <span>
+                            Envío{{ quote.zoneName ? ' a ' + quote.zoneName : '' }}:
+                            <strong>{{ cartFacade.summary().shipping === 0 ? 'gratis' : (cartFacade.summary().shipping | arsCurrency) }}</strong>
+                            @if (quote.eta) {
+                              <span class="text-emerald-700"> · llega en {{ quote.eta }}</span>
+                            }
+                          </span>
+                        </p>
+                      } @else {
+                        <p class="px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 flex items-center gap-2">
+                          <span class="material-symbols-outlined text-base text-rose-600">block</span>
+                          <span>Por ahora no hacemos envíos a ese código postal.</span>
+                        </p>
+                      }
+                    } @else if (shippingFacade.hasZones()) {
+                      <p class="text-stone-500">Ingresá tu código postal para ver el costo de envío.</p>
+                    }
                   </div>
                 </div>
 
@@ -401,7 +449,10 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                     @if (order.totals.paymentDiscount) {
                       <div class="flex justify-between"><span>Descuento por transferencia</span><span class="font-mono">-{{ order.totals.paymentDiscount | arsCurrency }}</span></div>
                     }
-                    <div class="flex justify-between"><span>Envío</span><span class="font-mono">{{ order.totals.shipping ? (order.totals.shipping | arsCurrency) : 'Gratis' }}</span></div>
+                    <div class="flex justify-between"><span>Envío{{ order.customer.zone ? ' (' + order.customer.zone + ')' : '' }}</span><span class="font-mono">{{ order.totals.shipping ? (order.totals.shipping | arsCurrency) : 'Gratis' }}</span></div>
+                    @if (order.customer.eta) {
+                      <p class="text-[11px] text-stone-500 text-right">Llega en {{ order.customer.eta }}</p>
+                    }
                   </div>
 
                   <div class="pt-3 border-t border-stone-100 flex items-center justify-between text-sm font-bold text-stone-900">
@@ -495,6 +546,8 @@ export class CheckoutModalComponent {
   readonly checkoutFacade = inject(CheckoutFacade);
   readonly cartFacade = inject(CartFacade);
   readonly storeFacade = inject(StoreFacade);
+  readonly shippingFacade = inject(ShippingFacade);
+  readonly provinces = AR_PROVINCES;
 
   statusLabel(status: OrderStatus): string {
     return ORDER_STATUS_LABELS[status];

@@ -26,4 +26,6 @@ export interface CartSummary {
   total: number;
   freeShippingThreshold: number;
   freeShippingRemaining: number;
+  /** false si en la zona de la clienta el envío nunca es gratis. */
+  freeShippingAvailable: boolean;
 }

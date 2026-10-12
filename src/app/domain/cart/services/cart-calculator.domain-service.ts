@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { CartItem, CartSummary, CouponDiscount } from '../models/cart-item.model';
-import { FALLBACK_STORE_SETTINGS, StoreSettings } from '../../store/store-settings.model';
+import { FALLBACK_STORE_SETTINGS, ShippingQuote, StoreSettings } from '../../store/store-settings.model';
 
 /**
  * Muestra el mismo cálculo que hace el backend (libs/common/src/pricing.ts).
@@ -20,7 +20,13 @@ export class CartCalculatorDomainService {
     items: CartItem[],
     coupon?: CouponDiscount | null,
     settings: StoreSettings = FALLBACK_STORE_SETTINGS,
+    shippingQuote: ShippingQuote | null = null,
   ): CartSummary {
+    // Sin dirección todavía se usa el costo general; con código postal, el de su zona.
+    const shippingFee = shippingQuote?.fee ?? settings.shippingFee;
+    const freeShippingThreshold = shippingQuote?.freeShippingThreshold ?? settings.freeShippingThreshold;
+    // Un mínimo de 0 en una zona significa que ahí el envío nunca es gratis.
+    const qualifiesForFree = (amount: number) => freeShippingThreshold > 0 && amount >= freeShippingThreshold;
     const itemsCount = items.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const bundleDiscount = Math.round((subtotal * this.bundlePercent(itemsCount, settings)) / 100);
@@ -35,8 +41,7 @@ export class CartCalculatorDomainService {
     }
 
     const discountedSubtotal = Math.max(0, subtotal - bundleDiscount - couponDiscount);
-    const shipping =
-      itemsCount === 0 || discountedSubtotal >= settings.freeShippingThreshold ? 0 : settings.shippingFee;
+    const shipping = itemsCount === 0 || qualifiesForFree(discountedSubtotal) ? 0 : shippingFee;
 
     return {
       itemsCount,
@@ -45,8 +50,9 @@ export class CartCalculatorDomainService {
       couponDiscount,
       shipping,
       total: discountedSubtotal + shipping,
-      freeShippingThreshold: settings.freeShippingThreshold,
-      freeShippingRemaining: Math.max(0, settings.freeShippingThreshold - discountedSubtotal),
+      freeShippingThreshold,
+      freeShippingRemaining: freeShippingThreshold > 0 ? Math.max(0, freeShippingThreshold - discountedSubtotal) : 0,
+      freeShippingAvailable: freeShippingThreshold > 0,
     };
   }
 }

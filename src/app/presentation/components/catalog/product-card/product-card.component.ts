@@ -43,6 +43,15 @@ import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
               Tendencia
             </span>
           }
+          @if (!product.inStock) {
+            <span class="px-2.5 py-1 bg-stone-200 text-stone-700 text-[10px] font-bold tracking-wider uppercase rounded-full shadow-sm">
+              Agotado
+            </span>
+          } @else if (product.stock <= 3) {
+            <span class="px-2.5 py-1 bg-white/95 text-amber-900 text-[10px] font-bold tracking-wider uppercase rounded-full shadow-sm">
+              Últimas unidades
+            </span>
+          }
           @if (product.originalPrice) {
             <span class="px-2.5 py-1 bg-rose-900 text-rose-100 text-[10px] font-bold tracking-wider uppercase rounded-full shadow-sm">
               Oferta
@@ -73,8 +82,9 @@ import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
           <button
             type="button"
             (click)="quickAddToBag($event)"
-            title="Añadir a la bolsa"
-            class="p-2.5 bg-stone-900 hover:bg-stone-800 text-amber-200 rounded-xl shadow-lg transition-transform active:scale-95"
+            [disabled]="!product.inStock"
+            [title]="product.inStock ? 'Añadir a la bolsa' : 'Agotado'"
+            class="p-2.5 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-400 disabled:cursor-not-allowed text-amber-200 rounded-xl shadow-lg transition-transform active:scale-95"
             aria-label="Añadir rápido a la bolsa"
           >
             <span class="material-symbols-outlined text-base">shopping_bag</span>

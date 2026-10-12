@@ -3,6 +3,7 @@ import { HttpProductRepository } from '../infrastructure/repositories/http-produ
 import { CartFacade } from './cart.facade';
 import { Product, ProductCategory, FashionOccasion } from '../domain/catalog/models/product.model';
 import { CatalogFilterCriteria, DEFAULT_FILTER_CRITERIA, SortCriteria } from '../domain/catalog/models/filter.model';
+import { isSizeAvailable } from '../domain/catalog/services/variant-stock';
 
 @Injectable({
   providedIn: 'root',
@@ -68,9 +69,11 @@ export class CatalogFacade {
       (p) => p.price >= criteria.minPrice && p.price <= criteria.maxPrice
     );
 
-    // Stock
+    // Stock: con talles elegidos, tiene que quedar alguno de esos talles.
     if (criteria.onlyInStock) {
-      result = result.filter((p) => p.inStock && p.stock > 0);
+      result = result.filter(
+        (p) => p.inStock && p.stock > 0 && (!criteria.sizes.length || criteria.sizes.some((s) => isSizeAvailable(p, s))),
+      );
     }
 
     // Sorting

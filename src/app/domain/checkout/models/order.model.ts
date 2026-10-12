@@ -14,6 +14,9 @@ export interface ShippingData {
   provinceState: string;
   postalCode: string;
   notes?: string;
+  /** Zona de envío y plazo que asignó el servidor (solo en pedidos ya creados). */
+  zone?: string | null;
+  eta?: string | null;
 }
 
 export type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PREPARING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';

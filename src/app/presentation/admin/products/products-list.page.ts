@@ -83,7 +83,22 @@ const PAGE_SIZE = 20;
                     }
                   </td>
                   <td class="${UI.td}">
-                    @if (editingStock() === p.id) {
+                    @if (p.variantStock) {
+                      <a
+                        [routerLink]="['/admin/productos', p.id]"
+                        fragment="stock"
+                        class="inline-flex flex-col items-start rounded-lg px-2 py-1 text-sm hover:bg-stone-100"
+                        title="Editar stock por talle y color"
+                      >
+                        <span class="inline-flex items-center gap-1.5">
+                          <span [class.text-rose-700]="p.stock === 0" [class.font-semibold]="p.stock <= 3">{{ p.stock }}</span>
+                          <span class="whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-800">{{ variantLabel(p) }}</span>
+                        </span>
+                        @if (outOfStock(p); as n) {
+                          <span class="mt-0.5 whitespace-nowrap text-xs text-rose-700">{{ n }} {{ n === 1 ? 'combinación agotada' : 'combinaciones agotadas' }}</span>
+                        }
+                      </a>
+                    } @else if (editingStock() === p.id) {
                       <form class="flex items-center gap-1" (ngSubmit)="saveStock(p)">
                         <input
                           type="number"
@@ -194,6 +209,20 @@ export class ProductsListPage {
     this.load();
   }
 
+  /** "por talle", "por color" o "por talle y color", según los ejes del producto. */
+  variantLabel(p: AdminProduct): string {
+    const sizes = p.sizes?.length > 0;
+    const colors = p.colors?.length > 0;
+    return sizes && colors ? 'por talle y color' : sizes ? 'por talle' : 'por color';
+  }
+
+  /** Combinaciones talle × color sin unidades (las que no figuran en `variants` también cuentan). */
+  outOfStock(p: AdminProduct): number {
+    const combos = Math.max(1, p.sizes?.length ?? 0) * Math.max(1, p.colors?.length ?? 0);
+    const withStock = (p.variants ?? []).filter((v) => v.stock > 0).length;
+    return Math.max(0, combos - withStock);
+  }
+
   startStockEdit(p: AdminProduct): void {
     this.stockDraft = p.stock;
     this.notice.set(null);
@@ -208,7 +237,7 @@ export class ProductsListPage {
     }
     this.savingStock.set(true);
     this.error.set(null);
-    this.api.setStock(p.id, stock).subscribe({
+    this.api.setStock(p.id, { stock }).subscribe({
       next: (updated) => {
         this.items.update((list) => list.map((x) => (x.id === p.id ? { ...x, ...updated } : x)));
         this.editingStock.set(null);

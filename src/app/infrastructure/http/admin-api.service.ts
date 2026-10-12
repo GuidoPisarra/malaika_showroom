@@ -21,8 +21,11 @@ import {
   ProductInput,
   PublicStore,
   ShowroomZone,
+  StockUpdate,
   StoreSettings,
   TenantAdminView,
+  UploadFolder,
+  UploadedImage,
 } from '../../domain/admin/admin.models';
 import { AuthSessionService } from '../auth/auth-session.service';
 import { API_BASE_URL } from './api.config';
@@ -110,8 +113,16 @@ export class AdminApiService {
     return this.send('DELETE', `/products/${encodeURIComponent(id)}`);
   }
 
-  setStock(id: string, stock: number): Observable<AdminProduct> {
-    return this.send('PUT', `/products/${encodeURIComponent(id)}/stock`, { stock });
+  setStock(id: string, update: StockUpdate): Observable<AdminProduct> {
+    return this.send('PUT', `/products/${encodeURIComponent(id)}/stock`, update);
+  }
+
+  // Imágenes
+  /** Sube una imagen al almacenamiento del comercio y devuelve su URL pública. */
+  uploadImage(file: File, folder: UploadFolder): Observable<UploadedImage> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.send('POST', `/uploads?folder=${folder}`, body);
   }
 
   // Looks

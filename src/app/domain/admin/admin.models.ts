@@ -1,5 +1,11 @@
 /** Modelos del panel del comercio (respuestas de /api/admin/*). Montos enteros en pesos. */
 
+import type { VariantStock } from '../catalog/models/product.model';
+import type { ShippingZone } from '../store/store-settings.model';
+
+export type { VariantStock } from '../catalog/models/product.model';
+export type { ShippingZone } from '../store/store-settings.model';
+
 export interface Page<T> {
   items: T[];
   total: number;
@@ -150,6 +156,9 @@ export interface AdminProduct {
   details: string[];
   stock: number;
   inStock: boolean;
+  /** true: el stock se controla por talle y color y `stock` es la suma. */
+  variantStock: boolean;
+  variants: VariantStock[];
   silhouette?: Record<string, unknown>;
   arModelType?: ArModelType;
   arScale?: number;
@@ -180,6 +189,21 @@ export interface ProductInput {
   arModelType?: ArModelType | null;
   arScale?: number | null;
   active?: boolean;
+}
+
+/** Cuerpo de PUT /admin/products/:id/stock: stock general o por talle y color, uno de los dos. */
+export type StockUpdate = { stock: number } | { variants: VariantStock[] };
+
+// ---------- Imágenes ----------
+
+/** Carpeta donde se guarda una imagen subida; define el tamaño máximo. */
+export type UploadFolder = 'products' | 'looks' | 'showroom' | 'brand';
+
+export interface UploadedImage {
+  url: string;
+  width: number;
+  height: number;
+  size: number;
 }
 
 // ---------- Cupones ----------
@@ -269,6 +293,8 @@ export interface StoreSettings {
   orderPrefix: string;
   shippingFee: number;
   freeShippingThreshold: number;
+  shippingZones: ShippingZone[];
+  shipsOutsideZones: boolean;
   bundleDiscounts: BundleDiscountTier[];
   bankTransferDiscountPercent: number;
   bankTransfer: BankTransferInfo | null;

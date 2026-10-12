@@ -4,12 +4,13 @@ import { StoreSettings } from '../../../domain/admin/admin.models';
 import { AdminApiService } from '../../../infrastructure/http/admin-api.service';
 import { apiErrorMessage } from '../../../infrastructure/http/api.config';
 import { LoadingComponent, UI, intOrNull } from '../shared/admin-ui';
+import { ShippingZonesCard } from './shipping-zones.card';
 
 type TierGroup = FormGroup<{ minItems: FormControl<number | null>; percent: FormControl<number | null> }>;
 
 @Component({
   selector: 'admin-store-settings-form',
-  imports: [ReactiveFormsModule, LoadingComponent],
+  imports: [ReactiveFormsModule, LoadingComponent, ShippingZonesCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
@@ -22,7 +23,7 @@ type TierGroup = FormGroup<{ minItems: FormControl<number | null>; percent: Form
           </h3>
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label for="shippingFee" class="${UI.label}">Costo de envío (ARS)</label>
+              <label for="shippingFee" class="${UI.label}">Costo de envío general (ARS)</label>
               <input id="shippingFee" type="number" min="0" step="1" formControlName="shippingFee" class="${UI.input}" />
             </div>
             <div>
@@ -30,7 +31,12 @@ type TierGroup = FormGroup<{ minItems: FormControl<number | null>; percent: Form
               <input id="freeShippingThreshold" type="number" min="0" step="1" formControlName="freeShippingThreshold" class="${UI.input}" />
             </div>
           </div>
+          <p class="text-xs text-stone-500">Se aplican cuando no hay zonas o la dirección no cae en ninguna. Las zonas pueden usar este mínimo para envío gratis.</p>
         </section>
+
+        @if (settings(); as s) {
+          <admin-shipping-zones [settings]="s" />
+        }
 
         <section class="${UI.card} p-5 space-y-3">
           <h3 class="font-sans text-sm font-semibold text-stone-900 flex items-center gap-2">
@@ -141,6 +147,8 @@ export class StoreSettingsForm {
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
+  /** Última configuración guardada (para las zonas de envío). */
+  readonly settings = signal<StoreSettings | null>(null);
 
   readonly form = this.fb.group({
     shippingFee: new FormControl<number | null>(0, [Validators.required, Validators.min(0)]),
@@ -179,6 +187,7 @@ export class StoreSettingsForm {
   }
 
   private fill(s: StoreSettings): void {
+    this.settings.set(s);
     this.tiers.clear();
     [...(s.bundleDiscounts ?? [])]
       .sort((a, b) => a.minItems - b.minItems)

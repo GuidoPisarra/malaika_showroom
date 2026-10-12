@@ -10,6 +10,7 @@ import { OrdersApiService } from '../infrastructure/http/orders-api.service';
 import { LocalStorageService } from '../infrastructure/persistence/local-storage.service';
 import { CartFacade } from './cart.facade';
 import { CatalogFacade } from './catalog.facade';
+import { ShippingFacade } from './shipping.facade';
 import { StoreFacade } from './store.facade';
 
 export type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
@@ -32,6 +33,7 @@ export class CheckoutFacade {
   private cartFacade = inject(CartFacade);
   private catalogFacade = inject(CatalogFacade);
   private store = inject(StoreFacade);
+  private shippingFacade = inject(ShippingFacade);
   private auth = inject(AuthSessionService);
   private storage = inject(LocalStorageService);
   private document = inject(DOCUMENT);
@@ -91,6 +93,13 @@ export class CheckoutFacade {
     this.currentStep.set('shipping');
     this.isCheckoutOpen.set(true);
     this.cartFacade.closeCart();
+    this.quoteShipping();
+  }
+
+  /** Cotiza el envío con la dirección cargada (por ejemplo, la de la última compra). */
+  private quoteShipping(): void {
+    const { postalCode, provinceState } = this.shipping();
+    this.shippingFacade.updateDestination(postalCode, provinceState);
   }
 
   closeCheckout(): void {
@@ -106,6 +115,10 @@ export class CheckoutFacade {
 
   updateShipping(data: Partial<ShippingData>): void {
     this.shipping.update((prev) => ({ ...prev, ...data }));
+    if (data.postalCode !== undefined || data.provinceState !== undefined) {
+      this.errorMessage.set(null);
+      this.quoteShipping();
+    }
   }
 
   proceedToPayment(): void {
@@ -114,6 +127,10 @@ export class CheckoutFacade {
 
     if (!validation.valid) {
       this.errorMessage.set(validation.errors[0]);
+      return;
+    }
+    if (this.shippingFacade.quote()?.available === false) {
+      this.errorMessage.set('Por ahora no hacemos envíos a ese código postal.');
       return;
     }
 

@@ -6,13 +6,14 @@ import { AdminApiService } from '../../../infrastructure/http/admin-api.service'
 import { apiErrorMessage } from '../../../infrastructure/http/api.config';
 import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 import { EmptyComponent, LoadingComponent, UI } from '../shared/admin-ui';
+import { ImageUploadComponent } from '../shared/image-upload.component';
 
 const MAX_ITEMS = 10;
 const URL_PATTERN = /^https?:\/\/\S+$/i;
 
 @Component({
   selector: 'admin-looks-page',
-  imports: [ReactiveFormsModule, ArsCurrencyPipe, LoadingComponent, EmptyComponent],
+  imports: [ReactiveFormsModule, ArsCurrencyPipe, LoadingComponent, EmptyComponent, ImageUploadComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-wrap items-end justify-between gap-3 mb-6">
@@ -60,8 +61,10 @@ const URL_PATTERN = /^https?:\/\/\S+$/i;
               <label for="lsubtitle" class="${UI.label}">Bajada</label>
               <input id="lsubtitle" formControlName="subtitle" class="${UI.input}" maxlength="200" />
             </div>
-            <div class="sm:col-span-2">
-              <label for="imagePreview" class="${UI.label}">URL de la imagen *</label>
+            <div class="sm:col-span-2 space-y-2">
+              <p class="${UI.label}">Imagen del look *</p>
+              <admin-image-upload folder="looks" [label]="validPreview() ? 'Reemplazar imagen' : 'Subir imagen'" (uploaded)="setPreview($event)" />
+              <label for="imagePreview" class="block text-xs text-stone-500">o pegá la URL de una imagen</label>
               <input id="imagePreview" type="url" formControlName="imagePreview" class="${UI.input}" placeholder="https://…" (input)="previewTick.set(previewTick() + 1)" />
             </div>
           </div>
@@ -266,6 +269,12 @@ export class LooksPage {
     this.formOpen.set(true);
   }
 
+  setPreview(url: string): void {
+    this.form.controls.imagePreview.setValue(url);
+    this.form.controls.imagePreview.markAsDirty();
+    this.previewTick.update((n) => n + 1);
+  }
+
   closeForm(): void {
     this.formOpen.set(false);
     this.editing.set(null);
@@ -281,7 +290,7 @@ export class LooksPage {
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.formError.set('Completá el nombre y una URL de imagen válida.');
+      this.formError.set('Completá el nombre y subí una imagen (o pegá una URL válida).');
       return;
     }
     if (!this.selectedIds().length) {

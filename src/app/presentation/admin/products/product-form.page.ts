@@ -1,13 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormArray, FormControl, FormGroup, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { AdminProduct, ArModelType, ProductInput, ProductSlot } from '../../../domain/admin/admin.models';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Observable, of, switchMap } from 'rxjs';
+import { AdminProduct, ArModelType, ProductInput, ProductSlot, VariantStock } from '../../../domain/admin/admin.models';
 import { AdminApiService } from '../../../infrastructure/http/admin-api.service';
 import { apiErrorMessage } from '../../../infrastructure/http/api.config';
 import { LoadingComponent, UI, intOrNull } from '../shared/admin-ui';
+import { ImageUploadComponent } from '../shared/image-upload.component';
 
 type ColorGroup = FormGroup<{ name: FormControl<string>; hex: FormControl<string> }>;
+type StockMode = 'general' | 'variants';
+
+/** Clave de una celda de la grilla de stock (talle + color). */
+const cellKey = (size: string, color: string) => `${size}\u0000${color}`;
 
 const INVALID_MSG = 'Revisá los campos marcados.';
 const URL_PATTERN = /^https?:\/\/\S+$/i;
@@ -30,7 +36,7 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
 
 @Component({
   selector: 'admin-product-form-page',
-  imports: [ReactiveFormsModule, RouterLink, LoadingComponent],
+  imports: [ReactiveFormsModule, RouterLink, LoadingComponent, ImageUploadComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mb-6">
@@ -117,22 +123,34 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
                   <div class="flex h-full items-center justify-center text-stone-300"><span class="material-symbols-outlined text-3xl">image</span></div>
                 }
               </div>
-              <div class="flex-1">
-                <label for="image" class="${UI.label}">URL de la imagen principal *</label>
-                <input id="image" type="url" formControlName="image" class="${UI.input}" placeholder="https://…" />
-                @if (invalid('image')) {
-                  <p class="mt-1 text-xs text-rose-700">Ingresá una URL válida (http o https).</p>
-                }
+              <div class="flex-1 space-y-3">
+                <div>
+                  <p class="${UI.label}">Imagen principal *</p>
+                  <admin-image-upload folder="products" [label]="imagePreview() ? 'Reemplazar imagen principal' : 'Subir imagen principal'" (uploaded)="setImage($event)" />
+                </div>
+                <div>
+                  <label for="image" class="text-xs text-stone-500">o pegá la URL de una imagen</label>
+                  <input id="image" type="url" formControlName="image" class="${UI.input} mt-1" placeholder="https://…" />
+                  @if (invalid('image')) {
+                    <p class="mt-1 text-xs text-rose-700">Subí una imagen o ingresá una URL válida (http o https).</p>
+                  }
+                </div>
               </div>
             </div>
 
             <div formArrayName="gallery" class="space-y-2">
-              <p class="${UI.label}">Galería</p>
-              @for (ctrl of gallery.controls; track ctrl; let i = $index) {
+              <p class="${UI.label}">Galería ({{ gallery.length }}/20)</p>
+              @for (ctrl of gallery.controls; track ctrl; let i = $index, first = $first, last = $last) {
                 <div class="flex items-center gap-2">
-                  <img [src]="ctrl.value" alt="" class="text-transparent h-10 w-8 shrink-0 rounded bg-stone-100 object-cover" />
+                  <img [src]="ctrl.value" alt="" class="text-transparent h-12 w-10 shrink-0 rounded bg-stone-100 object-cover" />
                   <input [formControlName]="i" type="url" class="${UI.input}" placeholder="https://…" [attr.aria-label]="'Imagen de galería ' + (i + 1)" />
-                  <button type="button" class="${UI.btnIcon}" (click)="gallery.removeAt(i)" aria-label="Quitar imagen">
+                  <button type="button" class="${UI.btnIcon} disabled:opacity-30" (click)="moveGallery(i, -1)" [disabled]="first" aria-label="Subir en el orden">
+                    <span class="material-symbols-outlined text-lg">arrow_upward</span>
+                  </button>
+                  <button type="button" class="${UI.btnIcon} disabled:opacity-30" (click)="moveGallery(i, 1)" [disabled]="last" aria-label="Bajar en el orden">
+                    <span class="material-symbols-outlined text-lg">arrow_downward</span>
+                  </button>
+                  <button type="button" class="${UI.btnIcon}" (click)="gallery.removeAt(i); gallery.markAsDirty()" aria-label="Quitar imagen">
                     <span class="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
@@ -140,8 +158,11 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
                   <p class="text-xs text-rose-700">URL inválida.</p>
                 }
               }
+              @if (gallery.length < 20) {
+                <admin-image-upload folder="products" [multiple]="true" label="Subir imágenes a la galería" (uploaded)="addGallery($event)" />
+              }
               <button type="button" class="${UI.btnSecondary} py-1.5" (click)="addGallery()" [disabled]="gallery.length >= 20">
-                <span class="material-symbols-outlined text-lg">add_photo_alternate</span> Agregar imagen
+                <span class="material-symbols-outlined text-lg">link</span> Agregar por URL
               </button>
             </div>
           </section>
@@ -197,6 +218,116 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
             </div>
           </section>
 
+          <!-- Stock -->
+          <section id="stock" class="${UI.card} p-5 space-y-4 scroll-mt-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="font-sans text-sm font-semibold text-stone-900">Stock</h2>
+              <div class="inline-flex rounded-xl border border-stone-200 bg-white p-1 text-sm" role="radiogroup" aria-label="Cómo controlar el stock">
+                <button type="button" role="radio" class="rounded-lg px-3 py-1.5" [class]="stockMode() === 'general' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:text-stone-900'" [attr.aria-checked]="stockMode() === 'general'" (click)="setStockMode('general')">
+                  Stock general
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  class="rounded-lg px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+                  [class]="stockMode() === 'variants' ? 'bg-stone-900 text-white' : 'text-stone-600 hover:text-stone-900'"
+                  [attr.aria-checked]="stockMode() === 'variants'"
+                  [disabled]="!hasAxes()"
+                  (click)="setStockMode('variants')"
+                >
+                  Por talle y color
+                </button>
+              </div>
+            </div>
+
+            @if (stockMode() === 'general') {
+              <div class="max-w-xs">
+                <label for="stock" class="${UI.label}">{{ isNew() ? 'Stock inicial' : 'Unidades disponibles' }}</label>
+                <input id="stock" type="number" min="0" step="1" formControlName="stock" class="${UI.input}" />
+                @if (form.controls.stock.invalid && form.controls.stock.touched) {
+                  <p class="mt-1 text-xs text-rose-700">Ingresá un número entero mayor o igual a 0.</p>
+                }
+              </div>
+              <p class="text-xs text-stone-500">
+                Un solo número para todas las variantes.
+                @if (hasAxes()) {
+                  Si querés saber cuántas unidades quedan de cada talle y color, elegí “Por talle y color”.
+                } @else {
+                  Para controlar el stock por variante, primero cargá talles o colores.
+                }
+              </p>
+            } @else {
+              <p class="text-xs text-stone-500">
+                Cargá las unidades de cada combinación. El stock del producto es la suma; las combinaciones en 0 no se pueden comprar en la tienda.
+              </p>
+              @if (axesChanged()) {
+                <p class="flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <span class="material-symbols-outlined text-base">info</span>
+                  Cambiaste talles o colores: la grilla ya los muestra y se guardan juntos al tocar “Guardar”. Las combinaciones que quitaste se borran.
+                </p>
+              }
+              <div class="overflow-x-auto rounded-xl border border-stone-200">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-stone-50/80">
+                    <tr>
+                      <th class="${UI.th} whitespace-nowrap">Talle / color</th>
+                      @for (c of colKeys(); track c) {
+                        <th class="${UI.th} text-center whitespace-nowrap">
+                          @if (c) {
+                            <span class="inline-flex items-center gap-1.5">
+                              <span class="h-3 w-3 rounded-full border border-stone-300" [style.background]="colorHex(c)"></span>{{ c }}
+                            </span>
+                          } @else {
+                            Sin color
+                          }
+                        </th>
+                      }
+                      <th class="${UI.th} text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-stone-100">
+                    @for (s of rowKeys(); track s) {
+                      <tr>
+                        <th scope="row" class="px-4 py-2 text-left text-sm font-semibold text-stone-800 whitespace-nowrap">{{ s || 'Talle único' }}</th>
+                        @for (c of colKeys(); track c) {
+                          <td class="px-2 py-1.5 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              inputmode="numeric"
+                              class="w-20 rounded-lg border px-2 py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+                              [class]="!cell(s, c) ? 'border-rose-200 bg-rose-50 text-rose-700 focus:border-rose-400' : 'border-stone-300 bg-white text-stone-900 focus:border-amber-700'"
+                              [value]="cell(s, c)"
+                              (input)="setCell(s, c, $any($event.target).value)"
+                              [attr.aria-label]="'Stock ' + (s || 'talle único') + (c ? ' ' + c : '')"
+                            />
+                          </td>
+                        }
+                        <td class="px-4 py-2 text-right font-medium tabular-nums" [class.text-rose-700]="rowSum(s) === 0">{{ rowSum(s) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot class="border-t border-stone-200 bg-stone-50/80">
+                    <tr>
+                      <th scope="row" class="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-stone-500">Total</th>
+                      @for (c of colKeys(); track c) {
+                        <td class="px-2 py-2 text-center font-medium tabular-nums" [class.text-rose-700]="colSum(c) === 0">{{ colSum(c) }}</td>
+                      }
+                      <td class="px-4 py-2 text-right text-base font-semibold tabular-nums text-stone-900">{{ gridTotal() }}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p class="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+                <span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded border border-rose-200 bg-rose-50"></span> Sin stock</span>
+                @if (outOfStockCells()) {
+                  <span class="text-rose-700">{{ outOfStockCells() }} {{ outOfStockCells() === 1 ? 'combinación agotada' : 'combinaciones agotadas' }}</span>
+                }
+              </p>
+            }
+          </section>
+
           <!-- Detalles -->
           <section class="${UI.card} p-5 space-y-2" formArrayName="details">
             <h2 class="font-sans text-sm font-semibold text-stone-900">Detalles</h2>
@@ -218,7 +349,7 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
         <div class="space-y-6">
           <!-- Precio y stock -->
           <section class="${UI.card} p-5 space-y-4">
-            <h2 class="font-sans text-sm font-semibold text-stone-900">Precio y stock</h2>
+            <h2 class="font-sans text-sm font-semibold text-stone-900">Precio</h2>
             <div>
               <label for="price" class="${UI.label}">Precio (ARS) *</label>
               <input id="price" type="number" min="0" step="1" formControlName="price" class="${UI.input}" />
@@ -230,16 +361,11 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
               <label for="originalPrice" class="${UI.label}">Precio anterior (tachado)</label>
               <input id="originalPrice" type="number" min="0" step="1" formControlName="originalPrice" class="${UI.input}" placeholder="Opcional" />
             </div>
-            @if (isNew()) {
-              <div>
-                <label for="stock" class="${UI.label}">Stock inicial</label>
-                <input id="stock" type="number" min="0" step="1" formControlName="stock" class="${UI.input}" />
-              </div>
-            } @else {
-              <p class="rounded-xl bg-stone-50 px-3 py-2 text-sm text-stone-600">
-                Stock actual: <strong>{{ product()?.stock }}</strong>. Ajustalo desde el listado de productos.
-              </p>
-            }
+            <p class="rounded-xl bg-stone-50 px-3 py-2 text-sm text-stone-600">
+              Stock: <strong>{{ stockMode() === 'variants' ? gridTotal() : (form.controls.stock.value ?? 0) }}</strong>
+              {{ stockMode() === 'variants' ? '(suma por talle y color)' : '(general)' }}.
+              <a href="#stock" class="text-amber-800 underline-offset-2 hover:underline" (click)="$event.preventDefault(); scrollToStock()">Editar</a>
+            </p>
           </section>
 
           <!-- Visibilidad -->
@@ -302,6 +428,7 @@ const AR_TYPES: { value: ArModelType | ''; label: string }[] = [
 export class ProductFormPage {
   private api = inject(AdminApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private fb = inject(NonNullableFormBuilder);
 
   /** Parámetro :id de la ruta (no existe en /productos/nuevo). */
@@ -348,6 +475,26 @@ export class ProductFormPage {
   private readonly imageValue = toSignal(this.form.controls.image.valueChanges, { initialValue: '' });
   readonly imagePreview = computed(() => (URL_PATTERN.test(this.imageValue() ?? '') ? this.imageValue() : ''));
   readonly sizes = toSignal(this.form.controls.sizes.valueChanges, { initialValue: [] as string[] });
+  private readonly colorsValue = toSignal(this.form.controls.colors.valueChanges, { initialValue: [] as Partial<{ name: string; hex: string }>[] });
+
+  // ---------- Stock ----------
+  readonly stockMode = signal<StockMode>('general');
+  /** Unidades por combinación; null = celda vacía (cuenta como 0). */
+  readonly cells = signal<Record<string, number | null>>({});
+  /** Colores con nombre, sin repetir, en el orden del formulario. */
+  readonly colorNames = computed(() => [...new Set(this.colorsValue().map((c) => (c.name ?? '').trim()).filter(Boolean))]);
+  readonly hasAxes = computed(() => this.sizes().length > 0 || this.colorNames().length > 0);
+  readonly rowKeys = computed(() => (this.sizes().length ? this.sizes() : ['']));
+  readonly colKeys = computed(() => (this.colorNames().length ? this.colorNames() : ['']));
+  readonly gridTotal = computed(() => this.rowKeys().reduce((sum, s) => sum + this.rowSum(s), 0));
+  readonly outOfStockCells = computed(() => this.rowKeys().reduce((n, s) => n + this.colKeys().filter((c) => !this.cell(s, c)).length, 0));
+  /** true si los talles o colores del formulario difieren de los guardados. */
+  readonly axesChanged = computed(() => {
+    const p = this.product();
+    if (!p) return false;
+    const saved = (p.colors ?? []).map((c) => c.name);
+    return this.sizes().join('|') !== (p.sizes ?? []).join('|') || this.colorNames().join('|') !== saved.join('|');
+  });
 
   get gallery(): FormArray<FormControl<string>> {
     return this.form.controls.gallery;
@@ -360,6 +507,9 @@ export class ProductFormPage {
   }
 
   constructor() {
+    const state = this.router.currentNavigation()?.extras.state as { notice?: string; error?: string } | undefined;
+    if (state?.notice) this.notice.set(state.notice);
+    if (state?.error) this.error.set(state.error);
     this.form.statusChanges.pipe(takeUntilDestroyed()).subscribe((status) => {
       if (status === 'VALID' && this.error() === INVALID_MSG) this.error.set(null);
     });
@@ -384,6 +534,8 @@ export class ProductFormPage {
         this.product.set(p);
         this.fill(p);
         this.loading.set(false);
+        // Desde el listado se llega con #stock para editar la grilla.
+        if (this.route.snapshot.fragment === 'stock') setTimeout(() => this.scrollToStock());
       },
       error: (err: unknown) => {
         this.loadError.set(apiErrorMessage(err, 'No encontramos el producto.'));
@@ -414,11 +566,15 @@ export class ProductFormPage {
       occasion: p.occasion ?? '',
       isNew: p.isNew,
       isTrending: p.isTrending,
-      stock: p.stock,
+      stock: p.variantStock ? 0 : p.stock,
       arModelType: p.arModelType ?? '',
       arScale: p.arScale ?? null,
       active: p.active,
     });
+    this.stockMode.set(p.variantStock ? 'variants' : 'general');
+    const cells: Record<string, number | null> = {};
+    (p.variants ?? []).forEach((v) => (cells[cellKey(v.size, v.color)] = v.stock));
+    this.cells.set(cells);
     this.form.markAsPristine();
   }
 
@@ -427,8 +583,76 @@ export class ProductFormPage {
     return c.invalid && (c.touched || c.dirty);
   }
 
-  addGallery(): void {
-    this.gallery.push(this.fb.control('', Validators.pattern(URL_PATTERN)));
+  addGallery(url = ''): void {
+    if (this.gallery.length >= 20) return;
+    this.gallery.push(this.fb.control(url, Validators.pattern(URL_PATTERN)));
+    if (url) this.gallery.markAsDirty();
+  }
+
+  moveGallery(index: number, delta: number): void {
+    const target = index + delta;
+    if (target < 0 || target >= this.gallery.length) return;
+    const ctrl = this.gallery.at(index);
+    this.gallery.removeAt(index);
+    this.gallery.insert(target, ctrl);
+    this.gallery.markAsDirty();
+  }
+
+  setImage(url: string): void {
+    this.form.controls.image.setValue(url);
+    this.form.controls.image.markAsDirty();
+  }
+
+  cell(size: string, color: string): number | null {
+    return this.cells()[cellKey(size, color)] ?? null;
+  }
+
+  setCell(size: string, color: string, raw: string): void {
+    const n = raw === '' ? null : Math.max(0, Math.round(Number(raw)));
+    this.cells.update((cells) => ({ ...cells, [cellKey(size, color)]: n === null || Number.isFinite(n) ? n : null }));
+  }
+
+  rowSum(size: string): number {
+    return this.colKeys().reduce((sum, c) => sum + (this.cell(size, c) ?? 0), 0);
+  }
+
+  colSum(color: string): number {
+    return this.rowKeys().reduce((sum, s) => sum + (this.cell(s, color) ?? 0), 0);
+  }
+
+  colorHex(name: string): string {
+    return this.colorsValue().find((c) => (c.name ?? '').trim() === name)?.hex ?? '#E7E5E4';
+  }
+
+  setStockMode(mode: StockMode): void {
+    if (mode === this.stockMode() || (mode === 'variants' && !this.hasAxes())) return;
+    if (mode === 'general') {
+      // Al volver al stock general se propone la suma de la grilla.
+      this.form.controls.stock.setValue(this.gridTotal());
+    } else if (!Object.keys(this.cells()).length && this.rowKeys().length * this.colKeys().length === 1) {
+      this.setCell(this.rowKeys()[0], this.colKeys()[0], String(this.form.controls.stock.value ?? 0));
+    }
+    this.stockMode.set(mode);
+    this.form.markAsDirty();
+  }
+
+  scrollToStock(): void {
+    document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Grilla para PUT /stock con los talles y colores que quedaron guardados en el producto. */
+  private variantsFor(p: AdminProduct): VariantStock[] {
+    const sizes = p.sizes?.length ? p.sizes : [''];
+    const colors = p.colors?.length ? p.colors.map((c) => c.name) : [''];
+    return sizes.flatMap((size) => colors.map((color) => ({ size, color, stock: this.cell(size, color) ?? 0 })));
+  }
+
+  /** Guarda el stock después del producto; null si no hay nada que cambiar. */
+  private stockRequest(p: AdminProduct): Observable<AdminProduct> | null {
+    if (this.stockMode() === 'variants') return this.api.setStock(p.id, { variants: this.variantsFor(p) });
+    const stock = intOrNull(this.form.controls.stock.value) ?? 0;
+    if (!p.variantStock && p.stock === stock) return null;
+    return this.api.setStock(p.id, { stock });
   }
 
   addColor(): void {
@@ -480,7 +704,7 @@ export class ProductFormPage {
       arScale,
       active: v.active,
     };
-    if (this.isNew()) body.stock = intOrNull(v.stock) ?? 0;
+    if (this.isNew()) body.stock = this.stockMode() === 'general' ? (intOrNull(v.stock) ?? 0) : 0;
     return body;
   }
 
@@ -490,28 +714,57 @@ export class ProductFormPage {
       this.error.set(INVALID_MSG);
       return;
     }
+    if (this.stockMode() === 'variants' && !this.hasAxes()) {
+      this.error.set('Para controlar el stock por talle y color cargá al menos un talle o un color.');
+      return;
+    }
     this.saving.set(true);
     this.error.set(null);
     this.notice.set(null);
     const body = this.payload();
     const id = this.id();
     const request = id ? this.api.updateProduct(id, body) : this.api.createProduct(body);
-    request.subscribe({
-      next: (p) => {
-        this.saving.set(false);
-        if (!id) {
-          void this.router.navigate(['/admin/productos', p.id]);
-          return;
-        }
-        this.product.set(p);
-        this.fill(p);
-        this.notice.set('Cambios guardados.');
-      },
-      error: (err: unknown) => {
-        this.saving.set(false);
-        this.error.set(apiErrorMessage(err));
-      },
-    });
+    // Primero el producto (talles y colores nuevos), después el stock con esa grilla.
+    let saved: AdminProduct | null = null;
+    request
+      .pipe(
+        switchMap((p) => {
+          saved = p;
+          return this.stockRequest(p) ?? of(p);
+        }),
+      )
+      .subscribe({
+        next: (p) => this.afterSave(p, id ? 'Cambios guardados.' : 'Producto creado.'),
+        error: (err: unknown) => {
+          if (!saved) {
+            this.saving.set(false);
+            this.error.set(apiErrorMessage(err));
+            return;
+          }
+          this.afterSave(saved, null, `Guardamos el producto, pero no el stock: ${apiErrorMessage(err)}`);
+        },
+      });
+  }
+
+  private afterSave(p: AdminProduct, notice: string | null, error: string | null = null): void {
+    this.saving.set(false);
+    if (!this.id()) {
+      void this.router.navigate(['/admin/productos', p.id], { state: { notice, error } });
+      return;
+    }
+    // Si falló el stock se conserva la grilla que estaba editando.
+    const cells = this.cells();
+    const mode = this.stockMode();
+    const stock = this.form.controls.stock.value;
+    this.product.set(p);
+    this.fill(p);
+    if (error) {
+      this.cells.set(cells);
+      this.stockMode.set(mode);
+      this.form.controls.stock.setValue(stock);
+    }
+    this.notice.set(notice);
+    this.error.set(error);
   }
 
   deactivate(): void {
