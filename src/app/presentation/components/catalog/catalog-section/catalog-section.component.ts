@@ -42,7 +42,25 @@ import { ProductDetailModalComponent } from '../product-detail-modal/product-det
         <app-catalog-filter />
 
         <!-- Products Grid -->
-        @if (catalogFacade.filteredProducts().length === 0) {
+        @if (catalogFacade.isLoading()) {
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8" aria-busy="true">
+            @for (i of [1, 2, 3, 4]; track i) {
+              <div class="aspect-[3/4] rounded-3xl bg-stone-200/60 animate-pulse"></div>
+            }
+          </div>
+        } @else if (catalogFacade.loadError(); as error) {
+          <div class="text-center py-16 bg-white rounded-3xl border border-stone-200/70 p-8 space-y-4">
+            <span class="material-symbols-outlined text-3xl text-stone-400">cloud_off</span>
+            <p class="text-sm text-stone-600">{{ error }}</p>
+            <button
+              type="button"
+              (click)="catalogFacade.reload()"
+              class="px-5 py-2.5 bg-stone-900 text-amber-200 rounded-full text-xs font-semibold uppercase tracking-wider"
+            >
+              Reintentar
+            </button>
+          </div>
+        } @else if (catalogFacade.filteredProducts().length === 0) {
           <div class="text-center py-20 bg-white rounded-3xl border border-stone-200/70 p-8 space-y-4">
             <div class="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
               <span class="material-symbols-outlined text-3xl">filter_list_off</span>

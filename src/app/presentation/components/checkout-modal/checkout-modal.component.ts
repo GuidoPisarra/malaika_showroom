@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CheckoutFacade } from '../../../application/checkout.facade';
 import { CartFacade } from '../../../application/cart.facade';
+import { StoreFacade } from '../../../application/store.facade';
+import { ORDER_STATUS_LABELS, OrderStatus } from '../../../domain/checkout/models/order.model';
 import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 
 @Component({
@@ -15,7 +17,7 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
         id="checkout-modal-overlay"
         role="dialog"
         aria-modal="true"
-        aria-label="Pasarela de Pago Segura"
+        aria-label="Finalizar compra"
         class="fixed inset-0 z-50 overflow-y-auto bg-stone-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
       >
         <!-- Backdrop close button -->
@@ -38,11 +40,11 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
               </div>
               <div>
                 <h3 class="font-display text-xl text-stone-900 font-medium">
-                  Pasarela de Pago Segura Malaika
+                  Finalizar compra
                 </h3>
                 <p class="text-[11px] text-stone-500 flex items-center gap-1 font-mono">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>ENCRIPTACIÓN SSL 256-BIT • PCI-DSS CERTIFICADO</span>
+                  <span>Pago protegido por Mercado Pago</span>
                 </p>
               </div>
             </div>
@@ -224,28 +226,15 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
               </div>
             }
 
-            <!-- STEP 2: PASARELA DE PAGO & TARJETA INTERACTIVA -->
+            <!-- STEP 2: MEDIO DE PAGO -->
             @if (checkoutFacade.currentStep() === 'payment') {
               <div class="space-y-6">
-                <!-- Payment Method Selector Tabs -->
-                <div class="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    (click)="checkoutFacade.setPaymentMethod('credit-card')"
-                    class="p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5"
-                    [ngClass]="{
-                      'bg-stone-900 text-amber-200 border-stone-900 shadow-md': checkoutFacade.selectedPaymentMethod() === 'credit-card',
-                      'bg-white text-stone-700 border-stone-200 hover:border-stone-400': checkoutFacade.selectedPaymentMethod() !== 'credit-card'
-                    }"
-                  >
-                    <span class="material-symbols-outlined text-2xl">credit_card</span>
-                    <span class="text-xs font-semibold leading-tight">Tarjeta Crédito / Débito</span>
-                  </button>
-
+                <!-- Payment Method Selector -->
+                <div class="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     (click)="checkoutFacade.setPaymentMethod('mercado-pago')"
-                    class="p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5"
+                    class="p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5"
                     [ngClass]="{
                       'bg-sky-900 text-sky-100 border-sky-900 shadow-md': checkoutFacade.selectedPaymentMethod() === 'mercado-pago',
                       'bg-white text-stone-700 border-stone-200 hover:border-stone-400': checkoutFacade.selectedPaymentMethod() !== 'mercado-pago'
@@ -253,217 +242,36 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                   >
                     <span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
                     <span class="text-xs font-semibold leading-tight">Mercado Pago</span>
+                    <span class="text-[10px] opacity-80 leading-tight">Tarjetas de crédito, débito y dinero en cuenta</span>
                   </button>
 
                   <button
                     type="button"
                     (click)="checkoutFacade.setPaymentMethod('bank-transfer')"
-                    class="p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5"
+                    class="p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5"
                     [ngClass]="{
                       'bg-emerald-900 text-emerald-100 border-emerald-900 shadow-md': checkoutFacade.selectedPaymentMethod() === 'bank-transfer',
                       'bg-white text-stone-700 border-stone-200 hover:border-stone-400': checkoutFacade.selectedPaymentMethod() !== 'bank-transfer'
                     }"
                   >
                     <span class="material-symbols-outlined text-2xl">payments</span>
-                    <span class="text-xs font-semibold leading-tight">Transferencia (-5% EXTRA)</span>
+                    <span class="text-xs font-semibold leading-tight">Transferencia bancaria</span>
+                    @if (checkoutFacade.bankTransferPercent() > 0) {
+                      <span class="text-[10px] opacity-80 leading-tight">{{ checkoutFacade.bankTransferPercent() }}% de descuento extra</span>
+                    }
                   </button>
                 </div>
-
-                <!-- SUB-VIEW: Credit Card Details with 3D Flip Card Widget -->
-                @if (checkoutFacade.selectedPaymentMethod() === 'credit-card') {
-                  <div class="space-y-4">
-                    <!-- Interactive Visual Luxury Credit Card (Flips on CVV focus) -->
-                    <div class="relative w-full max-w-sm mx-auto aspect-[1.586] perspective-1000 select-none">
-                      <div
-                        class="w-full h-full rounded-2xl p-6 text-stone-100 shadow-2xl transition-transform duration-500 transform-style-3d relative overflow-hidden"
-                        [ngClass]="{
-                          'rotate-y-180': checkoutFacade.isCardFlipped(),
-                          'bg-gradient-to-tr from-stone-900 via-stone-800 to-amber-950 border border-amber-500/40': true
-                        }"
-                      >
-                        <!-- FRONT SIDE -->
-                        @if (!checkoutFacade.isCardFlipped()) {
-                          <div class="h-full flex flex-col justify-between relative z-10">
-                            <div class="flex items-center justify-between">
-                              <span class="font-serif italic tracking-widest text-amber-300 text-sm font-semibold">
-                                MALAIKA CARD
-                              </span>
-                              <!-- Brand Logo (Visa, Mastercard, Amex) -->
-                              <span class="text-xs font-bold uppercase tracking-wider font-mono bg-stone-950/60 px-2 py-0.5 rounded text-amber-200">
-                                {{ checkoutFacade.card().cardBrand.toUpperCase() }}
-                              </span>
-                            </div>
-
-                            <!-- Metallic Chip -->
-                            <div class="w-11 h-8 rounded-md bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 shadow-inner flex items-center justify-center">
-                              <span class="material-symbols-outlined text-stone-900 text-sm opacity-60">memory</span>
-                            </div>
-
-                            <!-- Formatted Card Number -->
-                            <div>
-                              <p class="font-mono text-base sm:text-lg tracking-widest text-amber-100 font-semibold drop-shadow-sm">
-                                {{ formattedCardNumber() }}
-                              </p>
-                            </div>
-
-                            <!-- Holder & Expiry -->
-                            <div class="flex justify-between items-end text-xs">
-                              <div>
-                                <span class="text-[9px] uppercase tracking-wider text-stone-400 block">Titular</span>
-                                <span class="font-medium tracking-wide text-stone-100 uppercase truncate max-w-[170px] block">
-                                  {{ checkoutFacade.card().cardHolder || 'NOMBRE Y APELLIDO' }}
-                                </span>
-                              </div>
-                              <div class="text-right">
-                                <span class="text-[9px] uppercase tracking-wider text-stone-400 block">Vence</span>
-                                <span class="font-mono font-medium text-stone-100">
-                                  {{ checkoutFacade.card().expiryMonth }}/{{ checkoutFacade.card().expiryYear }}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        }
-
-                        <!-- BACK SIDE (When CVV is focused) -->
-                        @if (checkoutFacade.isCardFlipped()) {
-                          <div class="h-full flex flex-col justify-between py-2 -mx-6 text-stone-100 rotate-y-180">
-                            <!-- Black Magnetic Stripe -->
-                            <div class="w-full h-10 bg-stone-950"></div>
-                            
-                            <!-- White Signature Strip & CVV Box -->
-                            <div class="px-6 flex items-center justify-end">
-                              <div class="bg-stone-200 text-stone-900 font-mono text-xs px-3 py-1.5 rounded font-bold tracking-widest">
-                                CVV: {{ checkoutFacade.card().cvv || '•••' }}
-                              </div>
-                            </div>
-
-                            <p class="px-6 text-[9px] text-stone-400 text-center font-mono">
-                              Firma autorizada • Seguridad 3D Secure activa
-                            </p>
-                          </div>
-                        }
-                      </div>
-                    </div>
-
-                    <!-- Card Input Fields -->
-                    <div class="space-y-3 pt-2">
-                      <div>
-                        <label for="input-card-number" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                          Número de Tarjeta *
-                        </label>
-                        <div class="relative">
-                          <input
-                            id="input-card-number"
-                            type="text"
-                            maxlength="19"
-                            [ngModel]="checkoutFacade.card().cardNumber"
-                            (ngModelChange)="onCardNumberChange($event)"
-                            placeholder="4500 0000 0000 0000"
-                            class="w-full pl-3.5 pr-12 py-2.5 bg-white border border-stone-200 rounded-xl font-mono text-sm focus:outline-none focus:border-amber-700 shadow-xs"
-                          />
-                          <span class="material-symbols-outlined text-stone-400 absolute right-3.5 top-1/2 -translate-y-1/2">
-                            credit_card
-                          </span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label for="input-card-holder" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                          Nombre del Titular (como figura en la tarjeta) *
-                        </label>
-                        <input
-                          id="input-card-holder"
-                          type="text"
-                          [ngModel]="checkoutFacade.card().cardHolder"
-                          (ngModelChange)="checkoutFacade.updateCard({ cardHolder: $event.toUpperCase() })"
-                          placeholder="SOFIA ROSSI"
-                          class="w-full px-3.5 py-2.5 bg-white border border-stone-200 rounded-xl uppercase text-sm focus:outline-none focus:border-amber-700 shadow-xs"
-                        />
-                      </div>
-
-                      <div class="grid grid-cols-3 gap-3">
-                        <div>
-                          <label for="select-card-month" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                            Mes
-                          </label>
-                          <select
-                            id="select-card-month"
-                            [ngModel]="checkoutFacade.card().expiryMonth"
-                            (ngModelChange)="checkoutFacade.updateCard({ expiryMonth: $event })"
-                            class="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-700"
-                          >
-                            @for (m of months; track m) {
-                              <option [value]="m">{{ m }}</option>
-                            }
-                          </select>
-                        </div>
-
-                        <div>
-                          <label for="select-card-year" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                            Año
-                          </label>
-                          <select
-                            id="select-card-year"
-                            [ngModel]="checkoutFacade.card().expiryYear"
-                            (ngModelChange)="checkoutFacade.updateCard({ expiryYear: $event })"
-                            class="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-700"
-                          >
-                            @for (y of years; track y) {
-                              <option [value]="y">{{ y }}</option>
-                            }
-                          </select>
-                        </div>
-
-                        <div>
-                          <label for="input-card-cvv" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                            CVV *
-                          </label>
-                          <input
-                            id="input-card-cvv"
-                            type="password"
-                            maxlength="4"
-                            [ngModel]="checkoutFacade.card().cvv"
-                            (ngModelChange)="checkoutFacade.updateCard({ cvv: $event })"
-                            (focus)="checkoutFacade.setCardFlipped(true)"
-                            (blur)="checkoutFacade.setCardFlipped(false)"
-                            placeholder="123"
-                            class="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl font-mono text-sm focus:outline-none focus:border-amber-700 text-center shadow-xs"
-                          />
-                        </div>
-                      </div>
-
-                      <!-- Installments Selector -->
-                      <div>
-                        <label for="select-card-installments" class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
-                          Planes de Pago & Cuotas
-                        </label>
-                        <select
-                          id="select-card-installments"
-                          [ngModel]="checkoutFacade.card().installments"
-                          (ngModelChange)="checkoutFacade.updateCard({ installments: $event })"
-                          class="w-full px-3.5 py-2.5 bg-white border border-stone-200 rounded-xl text-xs font-medium text-stone-800 focus:outline-none focus:border-amber-700"
-                        >
-                          <option [value]="1">1 cuota de {{ checkoutFacade.finalCheckoutAmount() | arsCurrency }} (Sin interés)</option>
-                          <option [value]="3">3 cuotas de {{ (checkoutFacade.finalCheckoutAmount() / 3) | arsCurrency }} (Sin interés)</option>
-                          <option [value]="6">6 cuotas fijas de {{ ((checkoutFacade.finalCheckoutAmount() * 1.08) / 6) | arsCurrency }}</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                }
 
                 <!-- SUB-VIEW: Mercado Pago -->
                 @if (checkoutFacade.selectedPaymentMethod() === 'mercado-pago') {
                   <div class="p-5 bg-sky-50 border border-sky-200 rounded-2xl space-y-3 text-xs text-sky-900 animate-fadeIn">
                     <div class="flex items-center gap-2">
-                      <span class="material-symbols-outlined text-sky-700 text-xl">account_balance_wallet</span>
-                      <strong class="text-sm">Mercado Pago Checkout Pro</strong>
+                      <span class="material-symbols-outlined text-sky-700 text-xl">lock</span>
+                      <strong class="text-sm">Pagás en Mercado Pago</strong>
                     </div>
                     <p>
-                      Al presionar <strong>"Finalizar Compra Segura"</strong>, procesaremos tu pago mediante la plataforma de Mercado Pago con dinero en cuenta, débito o tarjetas asociadas.
-                    </p>
-                    <p class="text-[11px] text-sky-700">
-                      Protección al Comprador 100% garantizada.
+                      Al confirmar te llevamos al sitio seguro de Mercado Pago, donde elegís tarjeta, cuotas o dinero en cuenta.
+                      Nosotros nunca vemos los datos de tu tarjeta. Cuando termines, volvés a la tienda con tu comprobante.
                     </p>
                   </div>
                 }
@@ -474,83 +282,134 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                     <div class="flex items-center justify-between">
                       <strong class="text-sm flex items-center gap-1.5">
                         <span class="material-symbols-outlined text-emerald-700">savings</span>
-                        <span>Transferencia Bancaria Inmediata</span>
+                        <span>Transferencia bancaria</span>
                       </strong>
-                      <span class="px-2 py-0.5 bg-emerald-700 text-white rounded font-bold">5% OFF EXTRA</span>
+                      @if (checkoutFacade.bankTransferPercent() > 0) {
+                        <span class="px-2 py-0.5 bg-emerald-700 text-white rounded font-bold">{{ checkoutFacade.bankTransferPercent() }}% OFF EXTRA</span>
+                      }
                     </div>
-                    <div class="bg-white/80 p-3 rounded-xl space-y-1 font-mono text-[11px] border border-emerald-200">
-                      <p><strong>CBU / CVU:</strong> 0000003100045892147852</p>
-                      <p><strong>Alias:</strong> MALAIKA.SHOWROOM</p>
-                      <p><strong>Titular:</strong> MALAIKA ATELIER S.A.</p>
-                      <p><strong>CUIT:</strong> 30-71654892-4</p>
-                    </div>
-                    <p class="text-[11px] text-emerald-800">
-                      El comprobante se validará de manera automática con tu número de orden.
+                    <p>
+                      Reservamos tus prendas y te mostramos los datos para transferir. Cuando recibamos la transferencia confirmamos tu pedido.
                     </p>
                   </div>
                 }
               </div>
             }
 
-            <!-- STEP 3: CONFIRMACIÓN Y COMPROBANTE DE ORDEN -->
+            <!-- STEP 3: CONFIRMACIÓN DEL PEDIDO -->
             @if (checkoutFacade.currentStep() === 'confirmation' && checkoutFacade.lastCompletedOrder(); as order) {
               <div class="text-center space-y-5 animate-fadeIn">
-                <!-- Success icon -->
-                <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
-                  <span class="material-symbols-outlined text-4xl">check_circle</span>
-                </div>
+                @if (order.status === 'PENDING_PAYMENT' && order.paymentMethod === 'BANK_TRANSFER') {
+                  <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
+                    <span class="material-symbols-outlined text-4xl">inventory_2</span>
+                  </div>
+                  <div>
+                    <span class="text-xs uppercase tracking-widest text-emerald-800 font-bold">¡Pedido reservado!</span>
+                    <h4 class="font-display text-2xl sm:text-3xl text-stone-900 font-semibold mt-1">
+                      Gracias, {{ order.customer.fullName }}
+                    </h4>
+                    <p class="text-xs text-stone-500 font-light mt-1">
+                      Transferí <strong>{{ order.totals.total | arsCurrency }}</strong> indicando el número de pedido. Te guardamos las prendas hasta
+                      <strong>{{ order.expiresAt | date: 'd/M HH:mm' }}</strong>.
+                    </p>
+                  </div>
+                  @if (checkoutFacade.bankTransferInfo() ?? storeFacade.settings().bankTransfer; as bank) {
+                    <div class="bg-white/80 p-4 rounded-xl space-y-1 font-mono text-[11px] border border-emerald-200 text-left text-emerald-950">
+                      <p><strong>CBU / CVU:</strong> {{ bank.cbu }}</p>
+                      <p><strong>Alias:</strong> {{ bank.alias }}</p>
+                      <p><strong>Titular:</strong> {{ bank.holder }}</p>
+                      <p><strong>Banco:</strong> {{ bank.bank }}</p>
+                      @if (bank.cuit) {
+                        <p><strong>CUIT:</strong> {{ bank.cuit }}</p>
+                      }
+                    </div>
+                  } @else {
+                    <p class="text-xs text-stone-600">Te enviamos los datos para transferir a <strong>{{ order.customer.email }}</strong>.</p>
+                  }
+                } @else if (order.status === 'PENDING_PAYMENT') {
+                  <div class="w-16 h-16 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center mx-auto shadow-inner">
+                    @if (checkoutFacade.isAwaitingPaymentConfirmation()) {
+                      <span class="w-7 h-7 border-2 border-sky-700 border-t-transparent rounded-full animate-spin"></span>
+                    } @else {
+                      <span class="material-symbols-outlined text-4xl">hourglass_top</span>
+                    }
+                  </div>
+                  <div>
+                    <span class="text-xs uppercase tracking-widest text-sky-800 font-bold">Estamos confirmando tu pago</span>
+                    <h4 class="font-display text-2xl sm:text-3xl text-stone-900 font-semibold mt-1">
+                      Gracias, {{ order.customer.fullName }}
+                    </h4>
+                    <p class="text-xs text-stone-500 font-light mt-1">
+                      Mercado Pago nos avisa en unos instantes. Si pagaste en efectivo puede demorar más; te escribimos a
+                      <strong>{{ order.customer.email }}</strong> cuando se acredite.
+                    </p>
+                  </div>
+                } @else {
+                  <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
+                    <span class="material-symbols-outlined text-4xl">check_circle</span>
+                  </div>
+                  <div>
+                    <span class="text-xs uppercase tracking-widest text-emerald-800 font-bold">¡Pago aprobado!</span>
+                    <h4 class="font-display text-2xl sm:text-3xl text-stone-900 font-semibold mt-1">
+                      Gracias por tu compra, {{ order.customer.fullName }}
+                    </h4>
+                    <p class="text-xs text-stone-500 font-light mt-1">
+                      Te vamos a escribir a <strong>{{ order.customer.email }}</strong> con el seguimiento del envío.
+                    </p>
+                  </div>
+                }
 
-                <div>
-                  <span class="text-xs uppercase tracking-widest text-emerald-800 font-bold">¡Pago Aprobado con Éxito!</span>
-                  <h4 class="font-display text-2xl sm:text-3xl text-stone-900 font-semibold mt-1">
-                    Gracias por tu compra, {{ order.customer.fullName }}
-                  </h4>
-                  <p class="text-xs text-stone-500 font-light mt-1">
-                    Hemos enviado el comprobante oficial y el seguimiento de envío a <strong>{{ order.customer.email }}</strong>.
-                  </p>
-                </div>
-
-                <!-- Receipt Voucher Card -->
+                <!-- Comprobante -->
                 <div class="bg-white p-5 rounded-2xl border border-stone-200 text-left space-y-4 shadow-sm">
                   <div class="flex items-center justify-between pb-3 border-b border-stone-100">
                     <div>
-                      <span class="text-[10px] text-stone-400 uppercase tracking-wider block">Número de Orden</span>
+                      <span class="text-[10px] text-stone-400 uppercase tracking-wider block">Número de pedido</span>
                       <span class="font-mono text-sm font-bold text-stone-900">{{ order.orderNumber }}</span>
                     </div>
                     <div class="text-right">
-                      <span class="text-[10px] text-stone-400 uppercase tracking-wider block">Código de Seguimiento</span>
-                      <span class="font-mono text-xs font-semibold text-amber-800">{{ order.trackingNumber }}</span>
+                      <span class="text-[10px] text-stone-400 uppercase tracking-wider block">Estado</span>
+                      <span class="text-xs font-semibold text-amber-800">{{ statusLabel(order.status) }}</span>
                     </div>
                   </div>
 
                   <div class="space-y-2 text-xs">
-                    <p><strong>Dirección de Entrega:</strong> {{ order.customer.address }}, {{ order.customer.city }}</p>
-                    <p><strong>Fecha Estimada de Entrega:</strong> {{ order.estimatedDelivery }}</p>
-                    <p><strong>Método de Pago:</strong> {{ order.paymentMethod === 'credit-card' ? 'Tarjeta de Crédito (Terminada en ' + order.cardLastFour + ')' : order.paymentMethod }}</p>
+                    <p><strong>Dirección de entrega:</strong> {{ order.customer.address }}, {{ order.customer.city }}</p>
+                    <p><strong>Medio de pago:</strong> {{ order.paymentMethod === 'BANK_TRANSFER' ? 'Transferencia bancaria' : 'Mercado Pago' }}</p>
                   </div>
 
-                  <!-- Items Purchased List -->
                   <div class="pt-2 border-t border-stone-100">
                     <span class="text-[11px] font-semibold text-stone-500 uppercase tracking-wider block mb-2">
-                      Prendas Adquiridas:
+                      Prendas:
                     </span>
                     <div class="space-y-2">
-                      @for (it of order.items; track it.id) {
+                      @for (it of order.items; track it.productId + it.size + it.color.name) {
                         <div class="flex items-center justify-between text-xs">
-                          <span class="truncate max-w-[200px]">{{ it.quantity }}x {{ it.product.name }} ({{ it.selectedSize }})</span>
-                          <span class="font-mono font-semibold">{{ it.product.price * it.quantity | arsCurrency }}</span>
+                          <span class="truncate max-w-[220px]">{{ it.quantity }}x {{ it.name }} ({{ it.size }}, {{ it.color.name }})</span>
+                          <span class="font-mono font-semibold">{{ it.unitPrice * it.quantity | arsCurrency }}</span>
                         </div>
                       }
                     </div>
                   </div>
 
+                  <div class="pt-3 border-t border-stone-100 space-y-1 text-xs text-stone-600">
+                    @if (order.totals.bundleDiscount) {
+                      <div class="flex justify-between"><span>Descuento por look</span><span class="font-mono">-{{ order.totals.bundleDiscount | arsCurrency }}</span></div>
+                    }
+                    @if (order.totals.couponDiscount) {
+                      <div class="flex justify-between"><span>Cupón {{ order.totals.couponCode }}</span><span class="font-mono">-{{ order.totals.couponDiscount | arsCurrency }}</span></div>
+                    }
+                    @if (order.totals.paymentDiscount) {
+                      <div class="flex justify-between"><span>Descuento por transferencia</span><span class="font-mono">-{{ order.totals.paymentDiscount | arsCurrency }}</span></div>
+                    }
+                    <div class="flex justify-between"><span>Envío</span><span class="font-mono">{{ order.totals.shipping ? (order.totals.shipping | arsCurrency) : 'Gratis' }}</span></div>
+                  </div>
+
                   <div class="pt-3 border-t border-stone-100 flex items-center justify-between text-sm font-bold text-stone-900">
-                    <span>Total Abonado</span>
-                    <span class="font-mono text-amber-900 text-base">{{ order.summary.total | arsCurrency }}</span>
+                    <span>Total</span>
+                    <span class="font-mono text-amber-900 text-base">{{ order.totals.total | arsCurrency }}</span>
                   </div>
                 </div>
 
-                <!-- Action Button in Confirmation -->
                 <div class="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                   <button
                     type="button"
@@ -558,7 +417,7 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                     class="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <span class="material-symbols-outlined text-base">print</span>
-                    <span>Imprimir Comprobante</span>
+                    <span>Imprimir comprobante</span>
                   </button>
 
                   <button
@@ -566,7 +425,7 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                     (click)="checkoutFacade.resetCheckout()"
                     class="px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-amber-200 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors"
                   >
-                    Continuar en la Boutique
+                    Seguir en la tienda
                   </button>
                 </div>
               </div>
@@ -618,7 +477,10 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                     <span>{{ checkoutFacade.processingMessage() }}</span>
                   } @else {
                     <span class="material-symbols-outlined text-base">lock</span>
-                    <span>Pagar {{ checkoutFacade.finalCheckoutAmount() | arsCurrency }}</span>
+                    <span>
+                      {{ checkoutFacade.selectedPaymentMethod() === 'bank-transfer' ? 'Reservar' : 'Pagar' }}
+                      {{ checkoutFacade.finalCheckoutAmount() | arsCurrency }}
+                    </span>
                   }
                 </button>
               }
@@ -632,20 +494,10 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 export class CheckoutModalComponent {
   readonly checkoutFacade = inject(CheckoutFacade);
   readonly cartFacade = inject(CartFacade);
+  readonly storeFacade = inject(StoreFacade);
 
-  readonly months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-  readonly years = ['26', '27', '28', '29', '30', '31'];
-
-  formattedCardNumber(): string {
-    const raw = this.checkoutFacade.card().cardNumber.replace(/\s+/g, '');
-    if (!raw) return '•••• •••• •••• ••••';
-    const chunks = raw.match(/.{1,4}/g) || [];
-    return chunks.join(' ');
-  }
-
-  onCardNumberChange(val: string): void {
-    const sanitized = val.replace(/\D/g, '').substring(0, 16);
-    this.checkoutFacade.updateCard({ cardNumber: sanitized });
+  statusLabel(status: OrderStatus): string {
+    return ORDER_STATUS_LABELS[status];
   }
 
   printReceipt(): void {

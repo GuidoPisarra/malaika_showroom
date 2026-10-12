@@ -1,8 +1,22 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Product } from '../domain/catalog/models/product.model';
 import { MannequinSlots, LookPreset, SavedLook } from '../domain/look-builder/models/look.model';
 import { LookStylistDomainService } from '../domain/look-builder/services/look-stylist.domain-service';
+import { AuthSessionService } from '../infrastructure/auth/auth-session.service';
+import { API_BASE_URL } from '../infrastructure/http/api.config';
 import { LocalStorageService } from '../infrastructure/persistence/local-storage.service';
+import { CartCalculatorDomainService } from '../domain/cart/services/cart-calculator.domain-service';
+import { CatalogFacade } from './catalog.facade';
+import { StoreFacade } from './store.facade';
+
+/** Look guardado tal como lo devuelve la API (/me/looks). */
+interface ApiSavedLook {
+  id: string;
+  name: string;
+  itemIds: string[];
+  createdAt: string;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -10,6 +24,12 @@ import { LocalStorageService } from '../infrastructure/persistence/local-storage
 export class LookBuilderFacade {
   private stylist = inject(LookStylistDomainService);
   private storage = inject(LocalStorageService);
+  private http = inject(HttpClient);
+  private api = inject(API_BASE_URL);
+  private auth = inject(AuthSessionService);
+  private catalog = inject(CatalogFacade);
+  private store = inject(StoreFacade);
+  private calculator = inject(CartCalculatorDomainService);
 
   // Equipped slots on the mannequin
   readonly slots = signal<MannequinSlots>({
@@ -41,12 +61,12 @@ export class LookBuilderFacade {
 
   // Bundle discount rate
   readonly discountRate = computed(() => {
-    return this.stylist.calculateBundleDiscount(this.equippedCount());
+    return this.calculator.bundlePercent(this.equippedCount(), this.store.settings()) / 100;
   });
 
   // Bundle discount amount
   readonly bundleDiscountAmount = computed(() => {
-    return Math.round(this.rawTotalPrice() * this.discountRate() * 100) / 100;
+    return Math.round(this.rawTotalPrice() * this.discountRate());
   });
 
   // Final look total price
@@ -59,39 +79,23 @@ export class LookBuilderFacade {
     return this.stylist.calculateHarmony(this.slots());
   });
 
-  // Presets
-  readonly presets: LookPreset[] = [
-    {
-      id: 'preset-gala',
-      name: 'Noche de Gala Champagne',
-      subtitle: 'Seda pura, stilettos dorados y choker de alta joyería',
-      tag: 'Más Elogiado',
-      imagePreview: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=400&q=80',
-      itemIds: ['prod-v1', 'prod-s1', 'prod-j1', 'prod-a1'],
-    },
-    {
-      id: 'preset-sastre',
-      name: 'Poder Femenino Ejecutivo',
-      subtitle: 'Blazer esmoquin, palazzo plisado y mules estructuradas',
-      tag: 'Look Editorial',
-      imagePreview: 'https://images.unsplash.com/photo-1548624149-f9b1859aa9d0?auto=format&fit=crop&w=400&q=80',
-      itemIds: ['prod-t2', 'prod-t3', 'prod-p1', 'prod-s2', 'prod-a1'],
-    },
-    {
-      id: 'preset-riviera',
-      name: 'Lujo Relajado Riviera',
-      subtitle: 'Lino francés, sombrero toquilla y detalles artesanales',
-      tag: 'Edición Verano',
-      imagePreview: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=400&q=80',
-      itemIds: ['prod-v3', 'prod-s2', 'prod-a2', 'prod-j2'],
-    },
-  ];
+  // Looks armados por el comercio (se cargan desde la API)
+  readonly presets = signal<LookPreset[]>([]);
 
-  // Saved looks in local storage
+  // Looks guardados: en la cuenta de la clienta si inició sesión, si no en este navegador
   readonly savedLooks = signal<SavedLook[]>([]);
 
   constructor() {
-    this.loadSavedLooks();
+    this.http.get<LookPreset[]>(`${this.api}/look-presets`).subscribe({
+      next: (presets) => this.presets.set(presets),
+      error: () => undefined,
+    });
+    // Recarga los looks guardados al iniciar o cerrar sesión y cuando llega el catálogo.
+    effect(() => {
+      this.auth.isLoggedIn();
+      this.catalog.allProducts();
+      untracked(() => this.loadSavedLooks());
+    });
     // Pre-populate with default chic look
     this.slots.set({
       dress: undefined,
@@ -103,8 +107,36 @@ export class LookBuilderFacade {
   }
 
   private loadSavedLooks(): void {
-    const saved = this.storage.getItem<SavedLook[]>('mlk_saved_looks', []);
-    this.savedLooks.set(saved);
+    if (!this.auth.isLoggedIn()) {
+      this.savedLooks.set(this.storage.getItem<SavedLook[]>('mlk_saved_looks', []));
+      return;
+    }
+    this.http.get<ApiSavedLook[]>(`${this.api}/me/looks`).subscribe({
+      next: (looks) => this.savedLooks.set(looks.map((l) => this.fromApi(l))),
+      error: () => undefined,
+    });
+  }
+
+  private fromApi(look: ApiSavedLook): SavedLook {
+    const byId = new Map(this.catalog.allProducts().map((p) => [p.id, p]));
+    const items = look.itemIds.map((id) => byId.get(id)).filter((p): p is Product => !!p);
+    return {
+      id: look.id,
+      name: look.name,
+      createdAt: new Date(look.createdAt).toLocaleDateString('es-AR', { month: 'short', day: 'numeric' }),
+      items,
+      totalPrice: items.reduce((sum, p) => sum + p.price, 0),
+    };
+  }
+
+  deleteSavedLook(id: string): void {
+    if (this.auth.isLoggedIn()) {
+      this.http.delete(`${this.api}/me/looks/${id}`).subscribe(() => this.loadSavedLooks());
+      return;
+    }
+    const updated = this.savedLooks().filter((l) => l.id !== id);
+    this.savedLooks.set(updated);
+    this.storage.setItem('mlk_saved_looks', updated);
   }
 
   equipItem(product: Product): void {
@@ -183,7 +215,7 @@ export class LookBuilderFacade {
     const items = this.equippedItems();
     if (items.length === 0) return;
 
-    const lookName = name || `Look Malaika ${this.savedLooks().length + 1}`;
+    const lookName = name || `Mi look ${this.savedLooks().length + 1}`;
     const newLook: SavedLook = {
       id: 'look-' + Date.now(),
       name: lookName,
@@ -192,10 +224,23 @@ export class LookBuilderFacade {
       totalPrice: this.finalLookPrice(),
     };
 
+    if (this.auth.isLoggedIn()) {
+      this.http
+        .post<ApiSavedLook>(`${this.api}/me/looks`, { name: lookName, itemIds: items.map((p) => p.id) })
+        .subscribe({
+          next: (look) => {
+            this.savedLooks.update((current) => [this.fromApi(look), ...current]);
+            this.showNotification(`"${lookName}" guardado en tu cuenta.`);
+          },
+          error: () => this.showNotification('No pudimos guardar el look, intentá de nuevo.'),
+        });
+      return;
+    }
+
     const updated = [newLook, ...this.savedLooks()].slice(0, 10);
     this.savedLooks.set(updated);
     this.storage.setItem('mlk_saved_looks', updated);
-    this.showNotification(`"${lookName}" guardado en tu colección de looks.`);
+    this.showNotification(`"${lookName}" guardado en este navegador. Creá tu cuenta para no perderlo.`);
   }
 
   setSlotSelector(slot: 'dress' | 'top' | 'bottom' | 'shoes' | 'accessory'): void {

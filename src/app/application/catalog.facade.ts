@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { InMemoryProductRepository } from '../infrastructure/repositories/in-memory-product.repository';
+import { HttpProductRepository } from '../infrastructure/repositories/http-product.repository';
+import { CartFacade } from './cart.facade';
 import { Product, ProductCategory, FashionOccasion } from '../domain/catalog/models/product.model';
 import { CatalogFilterCriteria, DEFAULT_FILTER_CRITERIA, SortCriteria } from '../domain/catalog/models/filter.model';
 
@@ -7,10 +8,13 @@ import { CatalogFilterCriteria, DEFAULT_FILTER_CRITERIA, SortCriteria } from '..
   providedIn: 'root',
 })
 export class CatalogFacade {
-  private productRepo = inject(InMemoryProductRepository);
+  private productRepo = inject(HttpProductRepository);
+  private cartFacade = inject(CartFacade);
 
   // State Signals
   readonly allProducts = signal<Product[]>([]);
+  readonly isLoading = signal<boolean>(true);
+  readonly loadError = signal<string | null>(null);
   readonly filterCriteria = signal<CatalogFilterCriteria>({ ...DEFAULT_FILTER_CRITERIA });
   readonly selectedProductForModal = signal<Product | null>(null);
   readonly isQuickViewOpen = signal<boolean>(false);
@@ -102,9 +106,24 @@ export class CatalogFacade {
   }
 
   private loadInitialCatalog(): void {
-    this.productRepo.getAll().subscribe((items) => {
-      this.allProducts.set(items);
+    // El catálogo es chico: se trae completo y se filtra en el navegador para que los filtros respondan al instante.
+    this.productRepo.getAll().subscribe({
+      next: (items) => {
+        this.allProducts.set(items);
+        this.isLoading.set(false);
+        this.cartFacade.syncWithCatalog(items);
+      },
+      error: () => {
+        this.isLoading.set(false);
+        this.loadError.set('No pudimos cargar el catálogo. Probá recargar la página en unos segundos.');
+      },
     });
+  }
+
+  reload(): void {
+    this.isLoading.set(true);
+    this.loadError.set(null);
+    this.loadInitialCatalog();
   }
 
   setCategory(category: ProductCategory | 'all'): void {

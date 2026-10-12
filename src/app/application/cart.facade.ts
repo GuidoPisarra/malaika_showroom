@@ -1,8 +1,11 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { CartItem, CartSummary, CouponDiscount } from '../domain/cart/models/cart-item.model';
 import { Product, ProductColor } from '../domain/catalog/models/product.model';
 import { CartCalculatorDomainService } from '../domain/cart/services/cart-calculator.domain-service';
+import { API_BASE_URL, apiErrorMessage } from '../infrastructure/http/api.config';
 import { LocalStorageService } from '../infrastructure/persistence/local-storage.service';
+import { StoreFacade } from './store.facade';
 
 @Injectable({
   providedIn: 'root',
@@ -10,6 +13,9 @@ import { LocalStorageService } from '../infrastructure/persistence/local-storage
 export class CartFacade {
   private calculator = inject(CartCalculatorDomainService);
   private storage = inject(LocalStorageService);
+  private http = inject(HttpClient);
+  private api = inject(API_BASE_URL);
+  private store = inject(StoreFacade);
 
   // State
   readonly items = signal<CartItem[]>([]);
@@ -17,10 +23,11 @@ export class CartFacade {
   readonly appliedCoupon = signal<CouponDiscount | null>(null);
   readonly couponError = signal<string | null>(null);
   readonly couponSuccess = signal<string | null>(null);
+  readonly isValidatingCoupon = signal<boolean>(false);
 
   // Cart summary computed
   readonly summary = computed<CartSummary>(() => {
-    return this.calculator.calculateSummary(this.items(), this.appliedCoupon());
+    return this.calculator.calculateSummary(this.items(), this.appliedCoupon(), this.store.settings());
   });
 
   readonly totalItemsCount = computed(() => this.summary().itemsCount);
@@ -80,6 +87,19 @@ export class CartFacade {
     this.isCartDrawerOpen.set(true);
   }
 
+  /** Actualiza precios y stock del carrito guardado con el catálogo vigente y quita lo que ya no existe. */
+  syncWithCatalog(products: Product[]): void {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const current = this.items();
+    const synced = current
+      .filter((item) => byId.has(item.product.id))
+      .map((item) => ({ ...item, product: byId.get(item.product.id)! }));
+    const changed =
+      synced.length !== current.length || synced.some((item, i) => item.product.price !== current[i].product.price);
+    this.items.set(synced);
+    if (changed) this.persistCart();
+  }
+
   updateQuantity(cartItemId: string, delta: number): void {
     this.items.update((current) => {
       return current
@@ -113,35 +133,24 @@ export class CartFacade {
     const sanitized = code.trim().toUpperCase();
 
     if (!sanitized) {
-      this.couponError.set('Ingresa un código promocional.');
+      this.couponError.set('Ingresá un código promocional.');
       return;
     }
 
-    if (sanitized === 'MALAIKA10') {
-      this.appliedCoupon.set({
-        code: 'MALAIKA10',
-        percent: 10,
-        description: '10% de descuento especial en tu orden',
+    this.isValidatingCoupon.set(true);
+    this.http
+      .post<CouponDiscount>(`${this.api}/coupons/validate`, { code: sanitized, subtotal: this.summary().subtotal })
+      .subscribe({
+        next: (coupon) => {
+          this.isValidatingCoupon.set(false);
+          this.appliedCoupon.set(coupon);
+          this.couponSuccess.set(`¡Cupón ${coupon.code} aplicado con éxito!`);
+        },
+        error: (err) => {
+          this.isValidatingCoupon.set(false);
+          this.couponError.set(apiErrorMessage(err, 'Código no válido o vencido.'));
+        },
       });
-      this.couponSuccess.set('¡Cupón MALAIKA10 aplicado con éxito!');
-    } else if (sanitized === 'VIP20') {
-      this.appliedCoupon.set({
-        code: 'VIP20',
-        percent: 20,
-        description: '20% de descuento exclusivo VIP',
-      });
-      this.couponSuccess.set('¡Cupón VIP20 aplicado con éxito!');
-    } else if (sanitized === 'BIENVENIDA') {
-      this.appliedCoupon.set({
-        code: 'BIENVENIDA',
-        percent: 0,
-        fixedAmount: 20000,
-        description: 'Descuento de bienvenida de $20.000',
-      });
-      this.couponSuccess.set('¡Cupón de bienvenida de $20.000 aplicado!');
-    } else {
-      this.couponError.set('Código no válido o vencido. Prueba con "MALAIKA10".');
-    }
   }
 
   removeCoupon(): void {

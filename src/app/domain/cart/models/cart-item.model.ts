@@ -13,6 +13,7 @@ export interface CouponDiscount {
   code: string;
   percent: number;
   fixedAmount?: number;
+  minSubtotal?: number;
   description: string;
 }
 

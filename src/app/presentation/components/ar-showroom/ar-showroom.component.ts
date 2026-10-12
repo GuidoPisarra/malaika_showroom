@@ -79,7 +79,7 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
           <div class="space-y-6">
             <!-- Showroom Zone Selector Tabs -->
             <div class="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-              @for (zone of showroomFacade.zones; track zone.id; let i = $index) {
+              @for (zone of showroomFacade.zones(); track zone.id; let i = $index) {
                 <button
                   type="button"
                   (click)="showroomFacade.setZone(i)"

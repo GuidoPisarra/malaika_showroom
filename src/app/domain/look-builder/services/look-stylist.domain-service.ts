@@ -74,13 +74,6 @@ export class LookStylistDomainService {
     };
   }
 
-  calculateBundleDiscount(itemsCount: number): number {
-    // 3 or more items get 15% bundle discount
-    if (itemsCount >= 3) return 0.15;
-    if (itemsCount === 2) return 0.08;
-    return 0;
-  }
-
   getActiveItems(slots: MannequinSlots): Product[] {
     const list: Product[] = [];
     if (slots.dress) list.push(slots.dress);

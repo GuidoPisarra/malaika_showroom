@@ -7,6 +7,10 @@ export const routes: Routes = [
     component: HomeComponent,
   },
   {
+    path: 'admin',
+    loadChildren: () => import('./presentation/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+  },
+  {
     path: '**',
     redirectTo: '',
   },
