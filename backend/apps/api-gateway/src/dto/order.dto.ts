@@ -92,3 +92,11 @@ export class SaveLookDto {
   @IsString({ each: true }) @ArrayMinSize(1) @ArrayMaxSize(10)
   itemIds: string[];
 }
+
+export class ShippingQuoteQuery {
+  @IsOptional() @IsString() @MaxLength(20)
+  postalCode?: string;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  province?: string;
+}

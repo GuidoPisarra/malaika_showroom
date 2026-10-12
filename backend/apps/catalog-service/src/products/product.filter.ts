@@ -1,4 +1,5 @@
 import { ProductFilter, ProductView } from './product.types.js';
+import { sizeInStock } from './variants.js';
 
 /** Mismo criterio de búsqueda y orden que usaba el repositorio en memoria del front. */
 export function filterProducts(products: ProductView[], f: ProductFilter): ProductView[] {
@@ -16,7 +17,10 @@ export function filterProducts(products: ProductView[], f: ProductFilter): Produ
   if (f.colors?.length) result = result.filter((p) => p.colors.some((c) => f.colors!.includes(c.name)));
   if (f.minPrice !== undefined) result = result.filter((p) => p.price >= f.minPrice!);
   if (f.maxPrice !== undefined) result = result.filter((p) => p.price <= f.maxPrice!);
-  if (f.onlyInStock) result = result.filter((p) => p.inStock);
+  if (f.onlyInStock) {
+    // Con talles elegidos, tiene que quedar stock de alguno de esos talles.
+    result = result.filter((p) => p.inStock && (!f.sizes?.length || f.sizes.some((s) => sizeInStock(p, s))));
+  }
 
   switch (f.sortBy) {
     case 'price-asc':

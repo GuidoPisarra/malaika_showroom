@@ -22,6 +22,8 @@ ENV NODE_ENV=production
 COPY --from=build /app ./
 ARG SERVICE
 ENV SERVICE=${SERVICE}
+# Carpeta de imágenes subidas cuando STORAGE_DRIVER=local (montada como volumen).
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
 USER node
 # Los servicios con base de datos aplican sus migraciones antes de arrancar.
 CMD ["sh", "-c", "cd apps/$SERVICE && if [ -d prisma ]; then npx prisma migrate deploy; fi && exec node --enable-source-maps dist/main.js"]

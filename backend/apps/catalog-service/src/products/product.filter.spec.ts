@@ -4,7 +4,7 @@ import type { ProductView } from './product.types.js';
 const base = {
   sku: null, subtitle: '', slot: 'dress', image: '', gallery: [], sizes: ['S', 'M'], material: 'seda',
   occasion: 'fiesta', isNew: false, isTrending: false, rating: 4, reviewsCount: 0, description: '', details: [],
-  stock: 1, inStock: true, active: true, createdAt: '2026-01-01T00:00:00.000Z',
+  stock: 1, inStock: true, variantStock: false, variants: [], active: true, createdAt: '2026-01-01T00:00:00.000Z',
 };
 const products: ProductView[] = [
   { ...base, id: 'a', name: 'Vestido Rojo', price: 100, category: 'vestidos', colors: [{ name: 'Rojo', hex: '#f00' }] },
@@ -28,5 +28,20 @@ describe('filterProducts', () => {
   it('ordena destacados primero y por precio', () => {
     expect(filterProducts(products, { sortBy: 'featured' })[0].id).toBe('b');
     expect(filterProducts(products, { sortBy: 'price-asc' }).map((p) => p.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('con stock por talle, "solo con stock" mira los talles elegidos', () => {
+    const byVariant: ProductView = {
+      ...products[0],
+      id: 'v',
+      variantStock: true,
+      stock: 2,
+      variants: [
+        { size: 'S', color: 'Rojo', stock: 0 },
+        { size: 'M', color: 'Rojo', stock: 2 },
+      ],
+    };
+    expect(filterProducts([byVariant], { sizes: ['S'], onlyInStock: true })).toEqual([]);
+    expect(filterProducts([byVariant], { sizes: ['M'], onlyInStock: true }).map((p) => p.id)).toEqual(['v']);
   });
 });

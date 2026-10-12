@@ -9,6 +9,7 @@ import {
   conflict,
   notFound,
   publish,
+  resolveShipping,
   rpc,
 } from '@malaika/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -72,7 +73,11 @@ export class OrdersService {
       return { product, quantity, size, color };
     });
 
-    // 2. Cupón y totales.
+    // 2. Envío según la zona de la dirección, cupón y totales.
+    const shippingQuote = resolveShipping(tenant.settings, input.customer);
+    if (!shippingQuote.available) {
+      throw badRequest('Por ahora no hacemos envíos a ese código postal', 'SHIPPING_UNAVAILABLE');
+    }
     const subtotal = lines.reduce((s, l) => s + l.product.price * l.quantity, 0);
     const coupon: Coupon | null = input.couponCode
       ? await this.coupons.findUsable(tenant.id, input.couponCode, subtotal)
@@ -82,6 +87,7 @@ export class OrdersService {
       tenant.settings,
       coupon,
       input.paymentMethod,
+      shippingQuote,
     );
 
     // 3. Pedido + uso del cupón en una sola transacción.
@@ -110,6 +116,8 @@ export class OrdersService {
               provinceState: input.customer.provinceState,
               postalCode: input.customer.postalCode,
               notes: input.customer.notes ?? '',
+              zone: shippingQuote.zoneName,
+              eta: shippingQuote.eta,
             },
             itemsCount: totals.itemsCount,
             subtotal: totals.subtotal,
@@ -143,7 +151,7 @@ export class OrdersService {
       await rpc(this.broker, CATALOG.reserveStock, {
         tenantId: tenant.id,
         orderId: order.id,
-        items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+        items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity, size: l.size, color: l.color.name })),
       });
     } catch (err) {
       await this.discard(order);

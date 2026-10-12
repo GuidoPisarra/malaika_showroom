@@ -12,12 +12,33 @@ export interface BankTransferInfo {
   cuit?: string;
 }
 
+/**
+ * Zona de envío. Una dirección cae en la zona si su código postal está en alguno
+ * de los rangos ("1000-1499" o "1425") o, si ninguna zona la toma por código
+ * postal, si su provincia está en la lista.
+ */
+export interface ShippingZone {
+  id: string;
+  name: string;
+  postalCodes: string[];
+  provinces: string[];
+  fee: number;
+  /** Compra mínima para envío gratis en esta zona. null usa la del comercio; 0 nunca es gratis. */
+  freeShippingThreshold: number | null;
+  /** Texto libre que ve la clienta, por ejemplo "24 a 48 h hábiles". */
+  eta: string;
+}
+
 /** Reglas comerciales configurables por cada comercio. Montos en la moneda del comercio. */
 export interface StoreSettings {
   currency: string;
   orderPrefix: string;
   shippingFee: number;
   freeShippingThreshold: number;
+  /** Zonas con costo propio. Sin zonas, todo el país paga shippingFee. */
+  shippingZones: ShippingZone[];
+  /** Si es false, solo se envía a direcciones que caen en alguna zona. */
+  shipsOutsideZones: boolean;
   bundleDiscounts: BundleDiscountTier[];
   bankTransferDiscountPercent: number;
   bankTransfer: BankTransferInfo | null;
@@ -32,6 +53,8 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   orderPrefix: 'ORD',
   shippingFee: 15000,
   freeShippingThreshold: 150000,
+  shippingZones: [],
+  shipsOutsideZones: true,
   bundleDiscounts: [],
   bankTransferDiscountPercent: 0,
   bankTransfer: null,

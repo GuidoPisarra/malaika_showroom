@@ -39,7 +39,7 @@ export class AdminCatalogController {
 
   @Put('products/:id/stock')
   setStock(@CurrentTenant() t: TenantContext, @Param('id') id: string, @Body() dto: StockDto) {
-    return this.broker.send(CATALOG.setStock, { tenantId: t.id, id, stock: dto.stock });
+    return this.broker.send(CATALOG.setStock, { tenantId: t.id, id, stock: dto.stock, variants: dto.variants });
   }
 
   @Get('look-presets')

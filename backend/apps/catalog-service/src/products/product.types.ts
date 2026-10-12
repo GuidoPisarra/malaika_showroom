@@ -3,6 +3,13 @@ export interface ProductColor {
   hex: string;
 }
 
+/** Stock de una combinación de talle y color. Campos vacíos si el producto no tiene talles o colores. */
+export interface VariantStock {
+  size: string;
+  color: string;
+  stock: number;
+}
+
 /** Forma del producto que consume el front (domain/catalog/models/product.model.ts). */
 export interface ProductView {
   id: string;
@@ -27,6 +34,9 @@ export interface ProductView {
   details: string[];
   stock: number;
   inStock: boolean;
+  /** true si el stock se controla por talle y color; en ese caso `variants` lo detalla. */
+  variantStock: boolean;
+  variants: VariantStock[];
   silhouette?: unknown;
   arModelType?: string;
   arScale?: number;

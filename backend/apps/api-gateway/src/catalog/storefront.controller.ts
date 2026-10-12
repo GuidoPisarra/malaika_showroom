@@ -1,9 +1,9 @@
-import { CATALOG, ORDERS } from '@malaika/common';
+import { CATALOG, ORDERS, resolveShipping } from '@malaika/common';
 import type { TenantContext } from '@malaika/common';
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { Broker } from '../core/broker.service.js';
 import { ProductQuery } from '../dto/catalog-query.dto.js';
-import { ValidateCouponDto } from '../dto/order.dto.js';
+import { ShippingQuoteQuery, ValidateCouponDto } from '../dto/order.dto.js';
 import { CurrentTenant } from '../tenant/tenant.decorator.js';
 
 /** Endpoints públicos de la tienda. */
@@ -15,6 +15,12 @@ export class StorefrontController {
   @Get('store')
   store(@CurrentTenant() tenant: TenantContext) {
     return { id: tenant.id, slug: tenant.slug, name: tenant.name, settings: tenant.settings };
+  }
+
+  /** Costo de envío para un código postal o provincia, según las zonas del comercio. */
+  @Get('shipping/quote')
+  shippingQuote(@CurrentTenant() tenant: TenantContext, @Query() q: ShippingQuoteQuery) {
+    return resolveShipping(tenant.settings, { postalCode: q.postalCode, provinceState: q.province });
   }
 
   @Get('products')

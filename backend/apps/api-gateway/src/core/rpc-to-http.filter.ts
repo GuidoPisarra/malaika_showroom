@@ -1,5 +1,5 @@
 import { isRpcErrorPayload } from '@malaika/common';
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger, PayloadTooLargeException } from '@nestjs/common';
 import type { Response } from 'express';
 import { TimeoutError } from 'rxjs';
 
@@ -11,6 +11,10 @@ export class RpcToHttpFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
 
+    if (exception instanceof PayloadTooLargeException) {
+      res.status(413).json({ statusCode: 413, message: 'El archivo es demasiado grande', code: 'FILE_TOO_LARGE' });
+      return;
+    }
     if (exception instanceof HttpException) {
       const body = exception.getResponse();
       res.status(exception.getStatus()).json(typeof body === 'string' ? { statusCode: exception.getStatus(), message: body } : body);

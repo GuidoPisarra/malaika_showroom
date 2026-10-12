@@ -108,9 +108,24 @@ export class ProductDto {
   position?: number;
 }
 
-export class StockDto {
-  @IsInt() @Min(0)
+export class VariantStockDto {
+  @IsString() @MaxLength(20)
+  size: string;
+
+  @IsString() @MaxLength(60)
+  color: string;
+
+  @IsInt() @Min(0) @Max(100000)
   stock: number;
+}
+
+/** Stock general (`stock`) o por talle y color (`variants`), uno de los dos. */
+export class StockDto {
+  @IsOptional() @IsInt() @Min(0)
+  stock?: number;
+
+  @IsOptional() @ValidateNested({ each: true }) @Type(() => VariantStockDto) @ArrayMaxSize(400)
+  variants?: VariantStockDto[];
 }
 
 export class PresetDto {
@@ -246,6 +261,30 @@ export class BankTransferDto {
   @IsOptional() @IsString() @MaxLength(20) cuit?: string;
 }
 
+export class ShippingZoneDto {
+  @IsString() @Matches(/^[a-z0-9-]{1,40}$/, { message: 'El id de la zona admite minúsculas, números y guiones' })
+  id: string;
+
+  @IsString() @MinLength(1) @MaxLength(80)
+  name: string;
+
+  @IsArray() @ArrayMaxSize(100)
+  @Matches(/^\d{4}(\s*-\s*\d{4})?$/, { each: true, message: 'Los códigos postales van como 1425 o como rango 1000-1499' })
+  postalCodes: string[];
+
+  @IsArray() @ArrayMaxSize(30) @IsString({ each: true }) @MaxLength(60, { each: true })
+  provinces: string[];
+
+  @IsInt() @Min(0)
+  fee: number;
+
+  @IsOptional() @IsInt() @Min(0)
+  freeShippingThreshold: number | null;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  eta: string;
+}
+
 export class StoreSettingsDto {
   @IsOptional() @IsString() @MaxLength(3)
   currency?: string;
@@ -258,6 +297,12 @@ export class StoreSettingsDto {
 
   @IsOptional() @IsInt() @Min(0)
   freeShippingThreshold?: number;
+
+  @IsOptional() @ValidateNested({ each: true }) @Type(() => ShippingZoneDto) @ArrayMaxSize(50)
+  shippingZones?: ShippingZoneDto[];
+
+  @IsOptional() @IsBoolean()
+  shipsOutsideZones?: boolean;
 
   @IsOptional() @ValidateNested({ each: true }) @Type(() => BundleTierDto) @ArrayMaxSize(10)
   bundleDiscounts?: BundleTierDto[];

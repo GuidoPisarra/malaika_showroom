@@ -43,6 +43,28 @@ Cada comercio tiene su propio catálogo, stock, cupones, pedidos, clientas, admi
 5. Transferencia: el pedido queda `PENDING_PAYMENT` con los datos bancarios del comercio y el admin lo marca como pagado.
 6. Los pedidos sin pagar vencen (`ORDER_TTL_HOURS_*`) y liberan su stock automáticamente.
 
+### Stock
+
+Cada producto controla su stock de una de dos formas, y el admin elige cuál desde el panel:
+
+- **General**: un solo número para el producto (`PUT /admin/products/:id/stock` con `{ stock }`). Sirve para accesorios o prendas de talle único.
+- **Por talle y color**: un número por cada combinación (`{ variants: [{ size, color, stock }] }`). El stock del producto pasa a ser la suma. Si el producto no tiene talles o colores, ese campo va vacío.
+
+Cada cambio queda registrado en `StockMovement`. Si el admin quita un talle o un color del producto, sus variantes se borran y el stock se recalcula.
+
+### Envíos por zona
+
+En la configuración del comercio (`shippingZones`) se cargan zonas con su costo, su mínimo para envío gratis y un plazo de entrega. Una dirección cae en una zona por código postal (`"1425"` o rangos `"1000-1499"`; se acepta el CPA `C1425ABC`) o, si ninguna la toma por código postal, por provincia. Fuera de las zonas se cobra `shippingFee`, o se rechaza el pedido si `shipsOutsideZones` es `false`.
+
+`GET /api/shipping/quote?postalCode=&province=` devuelve el costo para mostrarlo en el checkout. El pedido se cotiza de nuevo en el servidor.
+
+### Imágenes
+
+El panel sube las fotos a `POST /api/admin/uploads?folder=products|looks|showroom|brand` (campo `file`). El gateway valida que sea una imagen por su contenido, la endereza, la achica (2000 px de lado, 4096 en el showroom), la pasa a WebP y descarta los metadatos, incluida la ubicación GPS de las fotos del celular. Devuelve la URL pública.
+
+- `STORAGE_DRIVER=s3` (recomendado en producción): AWS S3, Cloudflare R2, DigitalOcean Spaces o MinIO. Completá `S3_*` y que `S3_PUBLIC_URL` apunte al dominio público del bucket o de la CDN.
+- `STORAGE_DRIVER=local`: se guardan en `UPLOADS_DIR` y el gateway las sirve en `/api/uploads`. En `docker-compose.yml` es el volumen `uploads`, que conviene incluir en los backups.
+
 ## Desarrollo local
 
 Requisitos: Node 22+, npm 11 (`npm i -g npm@11`) y Docker (o PostgreSQL, Redis y RabbitMQ instalados).
@@ -93,6 +115,7 @@ Todas las rutas llevan el prefijo `/api`. 🔓 pública · 👤 clienta logueada
 | GET | `/products` | 🔓 Catálogo. Filtros: `search, category, occasion, sizes, colors, minPrice, maxPrice, onlyInStock, sortBy` |
 | GET | `/products/featured`, `/products/:id` | 🔓 |
 | GET | `/look-presets`, `/showroom-zones` | 🔓 Looks armados y zonas del showroom AR |
+| GET | `/shipping/quote?postalCode=&province=` | 🔓 Costo y plazo de envío según la zona |
 | POST | `/coupons/validate` | 🔓 `{ code, subtotal? }` |
 | POST | `/orders` | 🔓/👤 Crea el pedido. Devuelve `order`, `checkoutUrl` (Mercado Pago) o `bankTransfer` |
 | GET | `/orders/track/:orderNumber?email=` | 🔓 Seguimiento para invitadas |
@@ -113,12 +136,13 @@ Todas las rutas llevan el prefijo `/api`. 🔓 pública · 👤 clienta logueada
 | --- | --- | --- |
 | GET | `/admin/dashboard` | Ventas de las últimas 24 h y 30 días, pedidos por estado |
 | GET, POST, PATCH, DELETE | `/admin/products[/:id]` | ABM de productos (la baja es lógica) |
-| PUT | `/admin/products/:id/stock` | Ajuste de stock con registro de movimiento |
+| PUT | `/admin/products/:id/stock` | `{ stock }` o `{ variants: [{ size, color, stock }] }`, con registro de movimiento |
+| POST | `/admin/uploads?folder=` | Sube una imagen (multipart, campo `file`) y devuelve `{ url, width, height }` |
 | GET, POST, PUT, DELETE | `/admin/look-presets[/:id]`, `/admin/showroom-zones[/:id]` | Looks y showroom |
 | GET, POST, PATCH, DELETE | `/admin/coupons[/:id]` | Cupones con vigencia, mínimo de compra y límite de usos |
 | GET | `/admin/orders`, `/admin/orders/:id` | Filtros: `status, search, page, pageSize` |
 | PATCH | `/admin/orders/:id/status` | `PAID`, `PREPARING`, `SHIPPED`, `DELIVERED`, `CANCELLED` (+ `trackingNumber`) |
-| GET, PATCH | `/admin/settings` | Reglas del comercio |
+| GET, PATCH | `/admin/settings` | Reglas del comercio, incluidas las zonas de envío |
 | GET, PUT | `/admin/payment-settings` | Credenciales de Mercado Pago |
 | GET, POST | `/admin/users` | Clientas y admins |
 

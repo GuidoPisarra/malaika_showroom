@@ -2,6 +2,7 @@ import { MALAIKA_TENANT_ID } from '@malaika/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { variantCombinations } from '../src/products/variants.js';
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.CATALOG_DATABASE_URL }) });
 const load = (file: string) => JSON.parse(readFileSync(new URL(`./seed-data/${file}`, import.meta.url), 'utf8'));
@@ -16,9 +17,29 @@ async function main() {
 
   const products = load('products.json') as Array<Record<string, unknown>>;
   for (const [position, { inStock: _inStock, ...p }] of products.entries()) {
-    await prisma.product.create({ data: { ...(p as never), tenantId, position } });
+    const sizes = p.sizes as string[];
+    const colors = p.colors as Array<{ name: string; hex: string }>;
+    const total = p.stock as number;
+    // Las prendas con varios talles se cargan con stock por talle y color, para mostrar las dos formas.
+    const combos = sizes.length > 1 ? variantCombinations({ sizes, colors }) : [];
+    const variants = combos.map((c, i) => ({
+      ...c,
+      // La última combinación queda agotada como ejemplo.
+      stock: combos.length > 2 && i === combos.length - 1 ? 0 : (i % 3) + 1,
+    }));
+    const stock = variants.length ? variants.reduce((s, v) => s + v.stock, 0) : total;
+    await prisma.product.create({
+      data: {
+        ...(p as never),
+        tenantId,
+        position,
+        stock,
+        variantStock: variants.length > 0,
+        variants: { create: variants.map((v) => ({ ...v, tenantId })) },
+      },
+    });
     await prisma.stockMovement.create({
-      data: { tenantId, productId: p.id as string, type: 'ADJUST', quantity: p.stock as number },
+      data: { tenantId, productId: p.id as string, type: 'ADJUST', quantity: stock },
     });
   }
 

@@ -13,6 +13,8 @@ import { StorefrontController } from './catalog/storefront.controller.js';
 import { Broker } from './core/broker.service.js';
 import { RedisService } from './core/redis.service.js';
 import { HealthController } from './health.controller.js';
+import { StorageService } from './media/storage.service.js';
+import { UploadsController } from './media/uploads.controller.js';
 import { OrdersController } from './orders/orders.controller.js';
 import { PlatformController } from './platform/platform.controller.js';
 import { TenantResolver } from './tenant/tenant-resolver.service.js';
@@ -36,8 +38,9 @@ import { WebhooksController } from './webhooks/webhooks.controller.js';
     AdminStoreController,
     PlatformController,
     WebhooksController,
+    UploadsController,
   ],
-  providers: [Broker, RedisService, TenantResolver, AuthGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [Broker, RedisService, StorageService, TenantResolver, AuthGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
@@ -49,6 +52,7 @@ export class AppModule implements NestModule {
         { path: 'health', method: RequestMethod.ALL },
         { path: 'platform/{*path}', method: RequestMethod.ALL },
         { path: 'webhooks/{*path}', method: RequestMethod.ALL },
+        { path: 'uploads/{*path}', method: RequestMethod.GET },
       )
       .forRoutes('*');
   }

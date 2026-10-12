@@ -1,7 +1,7 @@
 import { CATALOG } from '@malaika/common';
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import type { ProductFilter, ProductInput } from './product.types.js';
+import type { ProductFilter, ProductInput, VariantStock } from './product.types.js';
 import { ProductsService } from './products.service.js';
 
 @Controller()
@@ -49,7 +49,7 @@ export class ProductsController {
   }
 
   @MessagePattern(CATALOG.setStock)
-  setStock(@Payload() data: { tenantId: string; id: string; stock: number }) {
-    return this.products.setStock(data.tenantId, data.id, data.stock);
+  setStock(@Payload() data: { tenantId: string; id: string; stock?: number; variants?: VariantStock[] }) {
+    return this.products.setStock(data.tenantId, data.id, data);
   }
 }

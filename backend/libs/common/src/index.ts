@@ -5,6 +5,7 @@ export * from './errors.js';
 export * from './messaging.js';
 export * from './patterns.js';
 export * from './pricing.js';
+export * from './shipping.js';
 export * from './tenant.js';
 export * from './seed.js';
 export * from './env.js';
