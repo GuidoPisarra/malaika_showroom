@@ -1,10 +1,13 @@
 import 'reflect-metadata';
+import { requireEnv } from '@malaika/common';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { RpcToHttpFilter } from './core/rpc-to-http.filter.js';
+
+requireEnv('JWT_SECRET');
 
 const app = await NestFactory.create<NestExpressApplication>(AppModule);
 app.set('trust proxy', 1);
