@@ -1,0 +1,38 @@
+{
+  "name": "malaika-backend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Backend multi-comercio (NestJS + microservicios) para Malaika Showroom y otras tiendas",
+  "type": "module",
+  "workspaces": [
+    "libs/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @malaika/common && npm run build -ws --if-present --include-workspace-root=false",
+    "prisma:generate": "npm run prisma:generate -ws --if-present",
+    "prisma:migrate": "npm run prisma:migrate -ws --if-present",
+    "prisma:deploy": "npm run prisma:deploy -ws --if-present",
+    "seed": "npm run seed -ws --if-present",
+    "start:gateway": "npm run start:dev -w @malaika/api-gateway",
+    "start:identity": "npm run start:dev -w @malaika/identity-service",
+    "start:catalog": "npm run start:dev -w @malaika/catalog-service",
+    "start:orders": "npm run start:dev -w @malaika/orders-service",
+    "start:payments": "npm run start:dev -w @malaika/payments-service",
+    "start:notifications": "npm run start:dev -w @malaika/notifications-service",
+    "dev": "npm run build -w @malaika/common && concurrently -n gateway,identity,catalog,orders,payments,notifications -c cyan,magenta,green,yellow,blue,gray \"npm:start:gateway\" \"npm:start:identity\" \"npm:start:catalog\" \"npm:start:orders\" \"npm:start:payments\" \"npm:start:notifications\"",
+    "test": "npm run test -ws --if-present",
+    "typecheck": "npm run typecheck -ws --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
+    "esbuild@0.28.2": true
+  }
+}

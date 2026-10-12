@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+**/src/generated/
+.env
+
+# Imágenes subidas con STORAGE_DRIVER=local
+uploads/
+outbox/

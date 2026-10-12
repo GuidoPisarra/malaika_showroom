@@ -98,7 +98,7 @@ export const SILHOUETTE_SKIN_TONES: SilhouetteSkinTone[] = [
           <span class="text-xs uppercase tracking-wider text-stone-500 font-semibold mr-1">
             Inspiraciones:
           </span>
-          @for (preset of lookBuilderFacade.presets; track preset.id) {
+          @for (preset of lookBuilderFacade.presets(); track preset.id) {
             <button
               type="button"
               (click)="applyPreset(preset)"

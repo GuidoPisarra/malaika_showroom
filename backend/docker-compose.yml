@@ -1,0 +1,111 @@
+# Stack completo del backend para un VPS (o para probar todo junto en local).
+#   cp .env.example .env   # y completá los secretos
+#   docker compose up -d --build
+#   docker compose run --rm seed    # solo la primera vez
+#
+# En desarrollo podés levantar solo la infraestructura:
+#   docker compose up -d postgres redis rabbitmq
+
+x-service: &service
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  environment: &service-env
+    RABBITMQ_URL: amqp://${RABBITMQ_USER:-malaika}:${RABBITMQ_PASSWORD:-malaika}@rabbitmq:5672
+    REDIS_URL: redis://redis:6379
+    IDENTITY_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_identity
+    CATALOG_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_catalog
+    ORDERS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_orders
+    PAYMENTS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_payments
+    NOTIFICATIONS_DATABASE_URL: postgresql://${POSTGRES_USER:-malaika}:${POSTGRES_PASSWORD:-malaika}@postgres:5432/malaika_notifications
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    rabbitmq: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-malaika}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-malaika}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-malaika}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-malaika}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-malaika}
+    volumes: [rabbitdata:/var/lib/rabbitmq]
+    # 15672: panel de RabbitMQ, solo accesible desde el propio servidor.
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
+
+  identity-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: identity-service } }
+
+  catalog-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: catalog-service } }
+
+  orders-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: orders-service } }
+
+  payments-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: payments-service } }
+
+  notifications-service:
+    <<: *service
+    build: { context: ., args: { SERVICE: notifications-service } }
+
+  api-gateway:
+    <<: *service
+    build: { context: ., args: { SERVICE: api-gateway } }
+    ports: ["127.0.0.1:3100:3100"]
+    environment:
+      <<: *service-env
+      PORT: 3100
+      # Con STORAGE_DRIVER=local las imágenes del panel quedan en este volumen.
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+
+  # Carga el superadmin, el comercio Malaika y su catálogo inicial.
+  seed:
+    <<: *service
+    restart: "no"
+    profiles: ["tools"]
+    build: { context: ., args: { SERVICE: identity-service } }
+    command: ["sh", "-c", "npm run seed -w @malaika/identity-service && npm run seed -w @malaika/catalog-service && npm run seed -w @malaika/orders-service"]
+
+volumes:
+  uploads:
+  pgdata:
+  redisdata:
+  rabbitdata:

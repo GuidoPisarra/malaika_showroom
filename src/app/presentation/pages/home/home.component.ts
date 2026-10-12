@@ -1,5 +1,6 @@
-import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy, OnInit, PLATFORM_ID, inject } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { NavbarComponent } from '../../components/navbar/navbar.component';
 import { HeroBannerComponent } from '../../components/hero/hero-banner.component';
 import { ScrollCompanionComponent } from '../../components/scroll-companion/scroll-companion.component';
@@ -9,6 +10,9 @@ import { ARShowroomComponent } from '../../components/ar-showroom/ar-showroom.co
 import { CartDrawerComponent } from '../../components/cart-drawer/cart-drawer.component';
 import { CheckoutModalComponent } from '../../components/checkout-modal/checkout-modal.component';
 import { FooterComponent } from '../../components/footer/footer.component';
+import { AccountModalComponent } from '../../components/account-modal/account-modal.component';
+import { CheckoutFacade } from '../../../application/checkout.facade';
+import { AccountFacade } from '../../../application/account.facade';
 
 @Component({
   selector: 'app-home',
@@ -23,6 +27,7 @@ import { FooterComponent } from '../../components/footer/footer.component';
     CartDrawerComponent,
     CheckoutModalComponent,
     FooterComponent,
+    AccountModalComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -56,7 +61,35 @@ import { FooterComponent } from '../../components/footer/footer.component';
 
       <!-- Secure Payment Gateway & Checkout Flow -->
       <app-checkout-modal />
+
+      <!-- Cuenta: ingreso, registro, mis pedidos -->
+      <app-account-modal />
     </div>
   `,
 })
-export class HomeComponent {}
+export class HomeComponent implements OnInit {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private checkout = inject(CheckoutFacade);
+  private account = inject(AccountFacade);
+
+  private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+
+  ngOnInit(): void {
+    if (!this.isBrowser) return;
+    // Vuelta desde Mercado Pago: /?order=MLK-123456&payment=success|pending|failure
+    const params = this.route.snapshot.queryParamMap;
+    const orderNumber = params.get('order');
+    // Link de los emails de pedido: /?pedido=MLK-123456&email=...
+    const trackNumber = params.get('pedido');
+    const trackEmail = params.get('email');
+    if (orderNumber) {
+      this.checkout.handlePaymentReturn(orderNumber, params.get('payment'));
+    } else if (trackNumber && trackEmail) {
+      this.account.openTracking(trackNumber, trackEmail);
+    } else {
+      return;
+    }
+    void this.router.navigate([], { queryParams: {}, replaceUrl: true });
+  }
+}

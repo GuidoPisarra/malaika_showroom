@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { CartFacade } from '../../../application/cart.facade';
 import { LookBuilderFacade } from '../../../application/look-builder.facade';
 import { CatalogFacade } from '../../../application/catalog.facade';
+import { AccountFacade } from '../../../application/account.facade';
+import { AuthSessionService } from '../../../infrastructure/auth/auth-session.service';
 
 @Component({
   selector: 'app-navbar',
@@ -93,6 +95,21 @@ import { CatalogFacade } from '../../../application/catalog.facade';
               }
             </a>
 
+            <!-- Cuenta de la clienta -->
+            <button
+              id="nav-btn-account"
+              (click)="accountFacade.open()"
+              type="button"
+              class="relative p-2 text-stone-700 hover:text-amber-800 transition-colors rounded-full hover:bg-stone-100 flex items-center gap-1"
+              [attr.aria-label]="auth.isLoggedIn() ? 'Mi cuenta' : 'Ingresar'"
+              [title]="auth.isLoggedIn() ? 'Mi cuenta' : 'Ingresar o seguir un pedido'"
+            >
+              <span class="material-symbols-outlined text-2xl">{{ auth.isLoggedIn() ? 'account_circle' : 'person' }}</span>
+              @if (auth.user(); as user) {
+                <span class="hidden md:inline text-xs font-semibold max-w-[90px] truncate">{{ user.name.split(' ')[0] }}</span>
+              }
+            </button>
+
             <!-- Cart Drawer Trigger -->
             <button
               id="nav-btn-cart"
@@ -156,6 +173,8 @@ export class NavbarComponent {
   readonly cartFacade = inject(CartFacade);
   readonly lookBuilderFacade = inject(LookBuilderFacade);
   readonly catalogFacade = inject(CatalogFacade);
+  readonly accountFacade = inject(AccountFacade);
+  readonly auth = inject(AuthSessionService);
 
   readonly isMobileMenuOpen = signal<boolean>(false);
 

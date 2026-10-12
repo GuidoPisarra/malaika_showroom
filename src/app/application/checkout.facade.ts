@@ -1,32 +1,58 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import confetti from 'canvas-confetti';
-import { PaymentGatewayService } from '../infrastructure/payment/payment-gateway.service';
 import { PaymentValidatorDomainService } from '../domain/checkout/services/payment-validator.domain-service';
-import { CreditCardData, Order, PaymentMethodType, ShippingData } from '../domain/checkout/models/order.model';
-import { CartFacade } from './cart.facade';
+import { Order, PaymentMethodType, ShippingData } from '../domain/checkout/models/order.model';
+import { BankTransferInfo } from '../domain/store/store-settings.model';
+import { AuthSessionService } from '../infrastructure/auth/auth-session.service';
+import { apiErrorMessage } from '../infrastructure/http/api.config';
+import { OrdersApiService } from '../infrastructure/http/orders-api.service';
 import { LocalStorageService } from '../infrastructure/persistence/local-storage.service';
+import { CartFacade } from './cart.facade';
+import { CatalogFacade } from './catalog.facade';
+import { ShippingFacade } from './shipping.facade';
+import { StoreFacade } from './store.facade';
 
 export type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
+
+/** Lo que guardamos antes de ir a Mercado Pago para reconocer el pedido a la vuelta. */
+interface PendingCheckout {
+  orderNumber: string;
+  email: string;
+}
+
+const PENDING_KEY = 'mlk_pending_checkout';
+const SHIPPING_KEY = 'mlk_last_shipping';
 
 @Injectable({
   providedIn: 'root',
 })
 export class CheckoutFacade {
-  private gateway = inject(PaymentGatewayService);
+  private orders = inject(OrdersApiService);
   private validator = inject(PaymentValidatorDomainService);
   private cartFacade = inject(CartFacade);
+  private catalogFacade = inject(CatalogFacade);
+  private store = inject(StoreFacade);
+  private shippingFacade = inject(ShippingFacade);
+  private auth = inject(AuthSessionService);
   private storage = inject(LocalStorageService);
+  private document = inject(DOCUMENT);
+  private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   // State Signals
   readonly isCheckoutOpen = signal<boolean>(false);
   readonly currentStep = signal<CheckoutStep>('shipping');
-  readonly selectedPaymentMethod = signal<PaymentMethodType>('credit-card');
+  readonly selectedPaymentMethod = signal<PaymentMethodType>('mercado-pago');
   readonly isProcessing = signal<boolean>(false);
-  readonly processingMessage = signal<string>('Verificando token de seguridad...');
+  readonly processingMessage = signal<string>('Procesando...');
   readonly errorMessage = signal<string | null>(null);
   readonly lastCompletedOrder = signal<Order | null>(null);
+  /** Datos para transferir (del comercio), cuando se eligió transferencia. */
+  readonly bankTransferInfo = signal<BankTransferInfo | null>(null);
+  /** El pago se hizo en Mercado Pago pero todavía no llegó la confirmación. */
+  readonly isAwaitingPaymentConfirmation = signal<boolean>(false);
 
-  // Form states
+  // Form state
   readonly shipping = signal<ShippingData>({
     fullName: '',
     email: '',
@@ -37,42 +63,28 @@ export class CheckoutFacade {
     provinceState: 'Buenos Aires',
     postalCode: '',
     notes: '',
+    ...this.storage.getItem<Partial<ShippingData>>(SHIPPING_KEY, {}),
   });
 
-  readonly card = signal<CreditCardData>({
-    cardNumber: '',
-    cardHolder: '',
-    expiryMonth: '12',
-    expiryYear: '28',
-    cvv: '',
-    installments: 3,
-    cardBrand: 'visa',
-  });
+  readonly bankTransferPercent = computed(() => this.store.settings().bankTransferDiscountPercent);
 
-  readonly isCardFlipped = signal<boolean>(false);
-
-  // Bank transfer discount computed (5% extra discount if paying via direct transfer)
+  // Descuento por transferencia, sobre el total con envío (igual que el servidor)
   readonly bankTransferDiscount = computed(() => {
-    if (this.selectedPaymentMethod() === 'bank-transfer') {
-      return Math.round(this.cartFacade.summary().total * 0.05 * 100) / 100;
-    }
-    return 0;
+    if (this.selectedPaymentMethod() !== 'bank-transfer') return 0;
+    return Math.round((this.cartFacade.summary().total * this.bankTransferPercent()) / 100);
   });
 
   readonly finalCheckoutAmount = computed(() => {
     return Math.max(0, this.cartFacade.summary().total - this.bankTransferDiscount());
   });
 
-  // Recent order history
-  readonly orderHistory = signal<Order[]>([]);
-
   constructor() {
-    this.loadOrders();
-  }
-
-  private loadOrders(): void {
-    const orders = this.storage.getItem<Order[]>('mlk_orders_history', []);
-    this.orderHistory.set(orders);
+    // Completa nombre y correo con los de la cuenta si la clienta inició sesión.
+    effect(() => {
+      const user = this.auth.user();
+      if (!user || user.role !== 'CUSTOMER') return;
+      this.shipping.update((s) => ({ ...s, fullName: s.fullName || user.name, email: s.email || user.email }));
+    });
   }
 
   openCheckout(): void {
@@ -81,6 +93,13 @@ export class CheckoutFacade {
     this.currentStep.set('shipping');
     this.isCheckoutOpen.set(true);
     this.cartFacade.closeCart();
+    this.quoteShipping();
+  }
+
+  /** Cotiza el envío con la dirección cargada (por ejemplo, la de la última compra). */
+  private quoteShipping(): void {
+    const { postalCode, provinceState } = this.shipping();
+    this.shippingFacade.updateDestination(postalCode, provinceState);
   }
 
   closeCheckout(): void {
@@ -96,20 +115,10 @@ export class CheckoutFacade {
 
   updateShipping(data: Partial<ShippingData>): void {
     this.shipping.update((prev) => ({ ...prev, ...data }));
-  }
-
-  updateCard(data: Partial<CreditCardData>): void {
-    this.card.update((prev) => {
-      const next = { ...prev, ...data };
-      if (data.cardNumber !== undefined) {
-        next.cardBrand = this.validator.detectCardBrand(next.cardNumber);
-      }
-      return next;
-    });
-  }
-
-  setCardFlipped(flipped: boolean): void {
-    this.isCardFlipped.set(flipped);
+    if (data.postalCode !== undefined || data.provinceState !== undefined) {
+      this.errorMessage.set(null);
+      this.quoteShipping();
+    }
   }
 
   proceedToPayment(): void {
@@ -118,6 +127,10 @@ export class CheckoutFacade {
 
     if (!validation.valid) {
       this.errorMessage.set(validation.errors[0]);
+      return;
+    }
+    if (this.shippingFacade.quote()?.available === false) {
+      this.errorMessage.set('Por ahora no hacemos envíos a ese código postal.');
       return;
     }
 
@@ -131,61 +144,103 @@ export class CheckoutFacade {
 
   submitOrder(): void {
     this.errorMessage.set(null);
-
-    // If credit card, validate card data
-    if (this.selectedPaymentMethod() === 'credit-card') {
-      const cardValidation = this.validator.validateCard(this.card());
-      if (!cardValidation.valid) {
-        this.errorMessage.set(cardValidation.errors[0]);
-        return;
-      }
-    }
+    const method = this.selectedPaymentMethod();
+    const shipping = this.shipping();
+    const { notes: _notes, ...reusable } = shipping;
+    this.storage.setItem(SHIPPING_KEY, reusable);
 
     this.isProcessing.set(true);
-    this.processingMessage.set('Conectando con la pasarela bancaria segura (SSL 256-bit)...');
+    this.processingMessage.set('Reservando tus prendas...');
 
-    setTimeout(() => {
-      this.processingMessage.set('Validando protocolo 3D Secure y tokenización...');
-    }, 800);
-
-    const items = [...this.cartFacade.items()];
-    const summary = { ...this.cartFacade.summary(), total: this.finalCheckoutAmount() };
-
-    this.gateway
-      .processPayment(
-        this.selectedPaymentMethod(),
-        this.selectedPaymentMethod() === 'credit-card' ? this.card() : null,
-        this.shipping(),
-        items,
-        summary
-      )
+    this.orders
+      .create({
+        customer: shipping,
+        items: this.cartFacade.items(),
+        couponCode: this.cartFacade.appliedCoupon()?.code ?? null,
+        paymentMethod: method,
+      })
       .subscribe({
         next: (res) => {
-          this.isProcessing.set(false);
-          if (res.success && res.order) {
-            this.lastCompletedOrder.set(res.order);
-            const history = [res.order, ...this.orderHistory()];
-            this.orderHistory.set(history);
-            this.storage.setItem('mlk_orders_history', history);
-
-            // Empty cart
-            this.cartFacade.clearCart();
-            this.currentStep.set('confirmation');
-
-            // Trigger celebration confetti
-            this.launchConfetti();
-          } else {
-            this.errorMessage.set(res.errorMessage || 'Hubo un inconveniente al procesar el pago.');
+          if (res.checkoutUrl) {
+            // Mercado Pago: guardamos el pedido para mostrarlo cuando la clienta vuelva.
+            this.storage.setItem<PendingCheckout>(PENDING_KEY, {
+              orderNumber: res.order.orderNumber,
+              email: res.order.customer.email,
+            });
+            this.processingMessage.set('Te llevamos a Mercado Pago...');
+            this.document.location.assign(res.checkoutUrl);
+            return;
           }
-        },
-        error: () => {
           this.isProcessing.set(false);
-          this.errorMessage.set('Error en la pasarela de pagos. Por favor intenta nuevamente.');
+          this.bankTransferInfo.set(res.bankTransfer);
+          this.showConfirmation(res.order);
+        },
+        error: (err) => {
+          this.isProcessing.set(false);
+          this.errorMessage.set(apiErrorMessage(err, 'Hubo un inconveniente al procesar el pedido.'));
+          // Si algo se quedó sin stock, refrescamos el catálogo y el carrito.
+          if ((err as { status?: number }).status === 409) this.catalogFacade.reload();
         },
       });
   }
 
+  /**
+   * La clienta vuelve de Mercado Pago a `/?order=MLK-123456&payment=success|pending|failure`.
+   * Buscamos el pedido y mostramos el resultado.
+   */
+  handlePaymentReturn(orderNumber: string, result: string | null): void {
+    if (!this.isBrowser) return;
+    const pending = this.storage.getItem<PendingCheckout | null>(PENDING_KEY, null);
+    const email = pending?.orderNumber === orderNumber ? pending.email : this.auth.user()?.email;
+    if (!email) return;
+
+    if (result === 'failure') {
+      this.errorMessage.set('El pago no se completó. Tus prendas siguen en el carrito para que lo intentes de nuevo.');
+      this.isCheckoutOpen.set(true);
+      this.currentStep.set('payment');
+      return;
+    }
+
+    this.orders.track(orderNumber, email).subscribe({
+      next: (order) => {
+        this.storage.removeItem(PENDING_KEY);
+        this.bankTransferInfo.set(null);
+        this.isCheckoutOpen.set(true);
+        this.showConfirmation(order);
+        if (order.status === 'PENDING_PAYMENT') this.waitForPayment(orderNumber, email);
+      },
+      error: () => undefined,
+    });
+  }
+
+  /** El aviso de Mercado Pago puede tardar unos segundos: consultamos un rato más. */
+  private waitForPayment(orderNumber: string, email: string, attempt = 1): void {
+    this.isAwaitingPaymentConfirmation.set(true);
+    if (attempt > 10) {
+      this.isAwaitingPaymentConfirmation.set(false);
+      return;
+    }
+    setTimeout(() => {
+      this.orders.track(orderNumber, email).subscribe({
+        next: (order) => {
+          this.lastCompletedOrder.set(order);
+          if (order.status === 'PENDING_PAYMENT') this.waitForPayment(orderNumber, email, attempt + 1);
+          else this.isAwaitingPaymentConfirmation.set(false);
+        },
+        error: () => this.isAwaitingPaymentConfirmation.set(false),
+      });
+    }, 3000);
+  }
+
+  private showConfirmation(order: Order): void {
+    this.lastCompletedOrder.set(order);
+    this.cartFacade.clearCart();
+    this.currentStep.set('confirmation');
+    this.launchConfetti();
+  }
+
   private launchConfetti(): void {
+    if (!this.isBrowser) return;
     try {
       confetti({
         particleCount: 100,
@@ -202,6 +257,8 @@ export class CheckoutFacade {
     this.isCheckoutOpen.set(false);
     this.currentStep.set('shipping');
     this.lastCompletedOrder.set(null);
+    this.bankTransferInfo.set(null);
+    this.isAwaitingPaymentConfirmation.set(false);
     this.errorMessage.set(null);
   }
 }

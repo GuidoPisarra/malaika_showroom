@@ -1,9 +1,15 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CatalogFacade } from '../../../../application/catalog.facade';
 import { CartFacade } from '../../../../application/cart.facade';
 import { LookBuilderFacade } from '../../../../application/look-builder.facade';
 import { ProductColor, Product } from '../../../../domain/catalog/models/product.model';
+import {
+  availableStock,
+  firstAvailableSelection,
+  isColorAvailable,
+  isSizeAvailable,
+} from '../../../../domain/catalog/services/variant-stock';
 import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
 
 @Component({
@@ -123,26 +129,37 @@ import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
                   </div>
 
                   <!-- Color Selection -->
-                  <div>
-                    <span class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-2">
-                      Color: <span class="text-stone-900 font-normal">{{ selectedColor()?.name || product.colors[0].name }}</span>
-                    </span>
-                    <div class="flex items-center gap-2">
-                      @for (c of product.colors; track c.name) {
-                        <button
-                          type="button"
-                          (click)="selectedColor.set(c)"
-                          class="w-7 h-7 rounded-full border-2 transition-all relative flex items-center justify-center"
-                          [ngClass]="{
-                            'border-stone-900 ring-2 ring-stone-900 ring-offset-2': (selectedColor()?.name || product.colors[0].name) === c.name,
-                            'border-stone-300 hover:scale-105': (selectedColor()?.name || product.colors[0].name) !== c.name
-                          }"
-                          [style.backgroundColor]="c.hex"
-                          [title]="c.name"
-                        ></button>
-                      }
+                  @if (product.colors.length) {
+                    <div>
+                      <span class="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-2">
+                        Color: <span class="text-stone-900 font-normal">{{ current().color?.name }}</span>
+                        @if (product.inStock && stockLeft(product) === 0) {
+                          <span class="ml-1 normal-case tracking-normal font-normal text-rose-700">sin stock en este talle</span>
+                        }
+                      </span>
+                      <div class="flex items-center gap-2">
+                        @for (c of product.colors; track c.name) {
+                          <button
+                            type="button"
+                            (click)="selectColor(product, c)"
+                            class="w-7 h-7 rounded-full border-2 transition-all relative flex items-center justify-center"
+                            [ngClass]="{
+                              'border-stone-900 ring-2 ring-stone-900 ring-offset-2': current().color?.name === c.name,
+                              'border-stone-300 hover:scale-105': current().color?.name !== c.name,
+                              'opacity-40': !colorAvailable(product, c)
+                            }"
+                            [style.backgroundColor]="c.hex"
+                            [title]="colorAvailable(product, c) ? c.name : c.name + ' (sin stock)'"
+                            [attr.aria-label]="colorAvailable(product, c) ? c.name : c.name + ', sin stock'"
+                          >
+                            @if (!colorAvailable(product, c)) {
+                              <span class="absolute w-[130%] h-0.5 bg-stone-700/80 rotate-45 rounded"></span>
+                            }
+                          </button>
+                        }
+                      </div>
                     </div>
-                  </div>
+                  }
 
                   <!-- Size Selection -->
                   <div>
@@ -154,17 +171,26 @@ import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
                       @for (s of product.sizes; track s) {
                         <button
                           type="button"
-                          (click)="selectedSize.set(s)"
+                          (click)="selectSize(s)"
                           class="px-3.5 py-1.5 rounded-xl text-xs font-medium border transition-all"
                           [ngClass]="{
-                            'bg-stone-900 text-amber-200 border-stone-900 shadow-sm': (selectedSize() || product.sizes[0]) === s,
-                            'bg-white text-stone-700 border-stone-200 hover:border-stone-400': (selectedSize() || product.sizes[0]) !== s
+                            'bg-stone-900 text-amber-200 border-stone-900 shadow-sm': current().size === s,
+                            'bg-white text-stone-700 border-stone-200 hover:border-stone-400': current().size !== s && sizeAvailable(product, s),
+                            'bg-stone-50 text-stone-400 border-dashed border-stone-200 line-through': current().size !== s && !sizeAvailable(product, s)
                           }"
+                          [title]="sizeAvailable(product, s) ? 'Talle ' + s : 'Talle ' + s + ' sin stock en este color'"
                         >
                           {{ s }}
                         </button>
                       }
                     </div>
+                    @if (stockLeft(product); as left) {
+                      @if (left > 0 && left <= 3) {
+                        <p class="mt-2 text-xs font-semibold text-amber-800">
+                          {{ left === 1 ? '¡Queda la última!' : '¡Quedan solo ' + left + '!' }}
+                        </p>
+                      }
+                    }
                   </div>
 
                   <!-- Fabric & Details Accordion -->
@@ -185,10 +211,11 @@ import { ArsCurrencyPipe } from '../../../shared/pipes/ars-currency.pipe';
                     <button
                       type="button"
                       (click)="addToBag(product)"
-                      class="w-full py-3 px-4 bg-stone-900 hover:bg-stone-800 text-amber-200 text-xs font-bold tracking-wider uppercase rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      [disabled]="stockLeft(product) === 0"
+                      class="w-full py-3 px-4 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:text-stone-600 disabled:shadow-none disabled:cursor-not-allowed text-amber-200 text-xs font-bold tracking-wider uppercase rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
                       <span class="material-symbols-outlined text-base">shopping_bag</span>
-                      <span>Añadir a Bolsa</span>
+                      <span>{{ stockLeft(product) === 0 ? (product.inStock ? 'Sin stock en este talle' : 'Agotado') : 'Añadir a Bolsa' }}</span>
                     </button>
 
                     <!-- Equip on Mannequin Studio -->
@@ -241,6 +268,52 @@ export class ProductDetailModalComponent {
   readonly selectedSize = signal<string | null>(null);
   readonly selectedColor = signal<ProductColor | null>(null);
 
+  constructor() {
+    // Cada prenda arranca con su propia selección (talle y color con stock).
+    effect(() => {
+      this.catalogFacade.selectedProductForModal()?.id;
+      untracked(() => {
+        this.selectedSize.set(null);
+        this.selectedColor.set(null);
+        this.activeImage.set(null);
+      });
+    });
+  }
+
+  /** Talle y color que se van a agregar: lo que eligió la clienta o, si no eligió, la primera combinación con stock. */
+  readonly current = computed(() => {
+    const product = this.catalogFacade.selectedProductForModal();
+    if (!product) return { size: '', color: undefined as ProductColor | undefined };
+    const pick = firstAvailableSelection(product, { size: this.selectedSize(), color: this.selectedColor() });
+    return { size: this.selectedSize() ?? pick.size, color: this.selectedColor() ?? pick.color };
+  });
+
+  /** Unidades del talle y color elegidos. */
+  stockLeft(product: Product): number {
+    return availableStock(product, this.current().size, this.current().color?.name);
+  }
+
+  sizeAvailable(product: Product, size: string): boolean {
+    return isSizeAvailable(product, size, this.current().color?.name);
+  }
+
+  colorAvailable(product: Product, color: ProductColor | undefined): boolean {
+    return !color || isColorAvailable(product, color.name, this.current().size);
+  }
+
+  selectColor(product: Product, color: ProductColor): void {
+    this.selectedColor.set(color);
+    // Si el talle elegido no está en este color, pasamos al primero que sí esté.
+    if (this.selectedSize() && !isSizeAvailable(product, this.selectedSize()!, color.name)) {
+      const pick = firstAvailableSelection(product, { color });
+      if (pick.color?.name === color.name) this.selectedSize.set(pick.size);
+    }
+  }
+
+  selectSize(size: string): void {
+    this.selectedSize.set(size);
+  }
+
   handleKeydown(event: KeyboardEvent): void {
     if (!this.catalogFacade.isQuickViewOpen()) return;
     if (event.key === 'ArrowLeft') {
@@ -268,10 +341,8 @@ export class ProductDetailModalComponent {
   }
 
   addToBag(product: Product): void {
-    const size = this.selectedSize() || product.sizes[0];
-    const color = this.selectedColor() || product.colors[0];
-    this.cartFacade.addItem(product, size, color);
-    this.catalogFacade.closeQuickView();
+    const { size, color } = this.current();
+    if (this.cartFacade.addItem(product, size || undefined, color)) this.catalogFacade.closeQuickView();
   }
 
   equipOnMannequin(product: Product): void {

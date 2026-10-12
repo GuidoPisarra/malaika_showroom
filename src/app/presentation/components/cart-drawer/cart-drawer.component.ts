@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CartFacade } from '../../../application/cart.facade';
 import { CheckoutFacade } from '../../../application/checkout.facade';
+import { ShippingFacade } from '../../../application/shipping.facade';
 import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 
 @Component({
@@ -53,7 +54,12 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 
           <!-- Free Shipping Progress Indicator -->
           <div class="bg-amber-50 px-5 py-3 border-b border-amber-200/60 text-xs">
-            @if (cartFacade.summary().freeShippingRemaining === 0 && cartFacade.items().length > 0) {
+            @if (!cartFacade.summary().freeShippingAvailable) {
+              <div class="flex items-center gap-2 text-stone-700">
+                <span class="material-symbols-outlined text-base text-amber-700">local_shipping</span>
+                <span>Envío a tu zona: <strong>{{ cartFacade.summary().shipping | arsCurrency }}</strong></span>
+              </div>
+            } @else if (cartFacade.summary().freeShippingRemaining === 0 && cartFacade.items().length > 0) {
               <div class="flex items-center gap-2 text-emerald-800 font-medium">
                 <span class="material-symbols-outlined text-base text-emerald-600">check_circle</span>
                 <span>¡Felicidades! Has desbloqueado <strong>ENVÍO GRATIS</strong>.</span>
@@ -73,6 +79,16 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
               </div>
             }
           </div>
+
+          @if (cartFacade.stockNotice(); as notice) {
+            <div class="mx-5 mt-4 px-3.5 py-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2" role="status">
+              <span class="material-symbols-outlined text-base text-rose-600">inventory</span>
+              <span class="flex-1">{{ notice }}</span>
+              <button type="button" (click)="cartFacade.dismissStockNotice()" class="text-rose-500 hover:text-rose-800" aria-label="Cerrar aviso">
+                <span class="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          }
 
           <!-- Items List (Scrollable) -->
           <div class="flex-1 overflow-y-auto p-5 space-y-3.5">
@@ -147,8 +163,9 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
                         <button
                           type="button"
                           (click)="cartFacade.updateQuantity(item.id, 1)"
-                          class="w-7 h-7 flex items-center justify-center text-stone-600 hover:text-stone-900 font-bold"
-                          title="Aumentar"
+                          [disabled]="!cartFacade.canIncrease(item)"
+                          class="w-7 h-7 flex items-center justify-center text-stone-600 hover:text-stone-900 disabled:text-stone-300 disabled:cursor-not-allowed font-bold"
+                          [title]="cartFacade.canIncrease(item) ? 'Aumentar' : 'No hay más stock'"
                         >
                           +
                         </button>
@@ -217,9 +234,16 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 
                 <div class="flex justify-between">
                   <span>Envío</span>
-                  <span class="font-mono">
-                    {{ cartFacade.summary().shipping === 0 ? 'GRATIS' : (cartFacade.summary().shipping | arsCurrency) }}
-                  </span>
+                  @if (cartFacade.summary().shipping === 0) {
+                    <span class="font-mono">GRATIS</span>
+                  } @else if (shippingFacade.hasZones() && !shippingFacade.quote()) {
+                    <span class="text-right">
+                      <span class="font-mono">desde {{ shippingFacade.cheapestFee() | arsCurrency }}</span>
+                      <span class="block text-[10px] text-stone-400">se calcula con tu código postal</span>
+                    </span>
+                  } @else {
+                    <span class="font-mono">{{ cartFacade.summary().shipping | arsCurrency }}</span>
+                  }
                 </div>
 
                 <div class="flex justify-between text-base font-bold text-stone-900 pt-2 border-t border-stone-100">
@@ -257,13 +281,14 @@ import { ArsCurrencyPipe } from '../../shared/pipes/ars-currency.pipe';
 export class CartDrawerComponent {
   readonly cartFacade = inject(CartFacade);
   readonly checkoutFacade = inject(CheckoutFacade);
+  readonly shippingFacade = inject(ShippingFacade);
 
   couponInput = '';
 
   shippingProgressPercent(): number {
     const subtotal = this.cartFacade.summary().subtotal;
     const threshold = this.cartFacade.summary().freeShippingThreshold;
-    return Math.min(100, Math.round((subtotal / threshold) * 100));
+    return threshold > 0 ? Math.min(100, Math.round((subtotal / threshold) * 100)) : 0;
   }
 
   applyCouponCode(): void {
