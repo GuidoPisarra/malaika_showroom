@@ -23,10 +23,27 @@ export interface VariantStock {
   stock: number;
 }
 
+export type GarmentShape =
+  | 'dress-silk'
+  | 'dress-midi'
+  | 'top-blouse'
+  | 'top-crop'
+  | 'blazer'
+  | 'pants-palazzo'
+  | 'skirt-satin'
+  | 'shoes-heels'
+  | 'shoes-mules'
+  | 'bag-clutch'
+  | 'jewelry-necklace'
+  | 'hat-fedora';
+
+export type GarmentTexture = 'silk' | 'linen' | 'leather' | 'gold' | 'solid';
+
+/** Cómo se dibuja la prenda sobre el maniquí. */
 export interface GarmentSilhouetteLayer {
-  svgType: 'dress-silk' | 'dress-midi' | 'top-blouse' | 'top-crop' | 'blazer' | 'pants-palazzo' | 'skirt-satin' | 'shoes-heels' | 'shoes-mules' | 'bag-clutch' | 'jewelry-necklace' | 'hat-fedora';
+  svgType: GarmentShape;
   colorHex: string;
-  texturePattern?: 'silk' | 'linen' | 'leather' | 'gold' | 'solid';
+  texturePattern?: GarmentTexture;
 }
 
 export interface Product {
@@ -56,7 +73,8 @@ export interface Product {
   /** true si el stock se controla por talle y color (ver `variants`). */
   variantStock?: boolean;
   variants?: VariantStock[];
-  silhouette: GarmentSilhouetteLayer;
+  /** Puede faltar en productos cargados desde el panel; ver `resolveSilhouette`. */
+  silhouette?: GarmentSilhouetteLayer | null;
   arModelType?: 'hanger' | 'mannequin' | 'display-stand';
   arScale?: number;
 }

@@ -10,7 +10,6 @@ import {
   IsIn,
   IsInt,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   IsUrl,
@@ -29,6 +28,21 @@ export class ColorDto {
 
   @IsHexColor()
   hex: string;
+}
+
+/** Cómo se dibuja la prenda en el maniquí de la tienda. */
+export class SilhouetteDto {
+  @IsIn([
+    'dress-silk', 'dress-midi', 'top-blouse', 'top-crop', 'blazer', 'pants-palazzo',
+    'skirt-satin', 'shoes-heels', 'shoes-mules', 'bag-clutch', 'jewelry-necklace', 'hat-fedora',
+  ])
+  svgType: string;
+
+  @IsHexColor()
+  colorHex: string;
+
+  @IsOptional() @IsIn(['silk', 'linen', 'leather', 'gold', 'solid'])
+  texturePattern?: string;
 }
 
 export class ProductDto {
@@ -92,8 +106,8 @@ export class ProductDto {
   @IsOptional() @IsInt() @Min(0)
   stock?: number;
 
-  @IsOptional() @IsObject()
-  silhouette?: Record<string, unknown> | null;
+  @IsOptional() @ValidateNested() @Type(() => SilhouetteDto)
+  silhouette?: SilhouetteDto | null;
 
   @IsOptional() @IsIn(['hanger', 'mannequin', 'display-stand'])
   arModelType?: string | null;
