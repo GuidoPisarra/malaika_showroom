@@ -1,0 +1,42 @@
+[
+  {
+    "id": "preset-gala",
+    "name": "Noche de Gala Champagne",
+    "subtitle": "Seda pura, stilettos dorados y choker de alta joyería",
+    "tag": "Más Elogiado",
+    "imagePreview": "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=400&q=80",
+    "itemIds": [
+      "prod-v1",
+      "prod-s1",
+      "prod-j1",
+      "prod-a1"
+    ]
+  },
+  {
+    "id": "preset-sastre",
+    "name": "Poder Femenino Ejecutivo",
+    "subtitle": "Blazer esmoquin, palazzo plisado y mules estructuradas",
+    "tag": "Look Editorial",
+    "imagePreview": "https://images.unsplash.com/photo-1548624149-f9b1859aa9d0?auto=format&fit=crop&w=400&q=80",
+    "itemIds": [
+      "prod-t2",
+      "prod-t3",
+      "prod-p1",
+      "prod-s2",
+      "prod-a1"
+    ]
+  },
+  {
+    "id": "preset-riviera",
+    "name": "Lujo Relajado Riviera",
+    "subtitle": "Lino francés, sombrero toquilla y detalles artesanales",
+    "tag": "Edición Verano",
+    "imagePreview": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=400&q=80",
+    "itemIds": [
+      "prod-v3",
+      "prod-s2",
+      "prod-a2",
+      "prod-j2"
+    ]
+  }
+]

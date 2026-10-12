@@ -1,0 +1,43 @@
+// Credenciales de cobro por comercio y pagos de Mercado Pago.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model PaymentSettings {
+  id                  String   @id @default(cuid())
+  tenantId            String   @unique
+  /// Access token de Mercado Pago, cifrado con ENCRYPTION_KEY.
+  mpAccessTokenEnc    String?
+  mpPublicKey         String?
+  /// Clave secreta de webhooks de Mercado Pago, cifrada.
+  mpWebhookSecretEnc  String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  tenantId          String
+  orderId           String
+  orderNumber       String
+  provider          String   @default("mercadopago")
+  amount            Int
+  currency          String   @default("ARS")
+  status            String   @default("pending")
+  statusDetail      String?
+  preferenceId      String?
+  checkoutUrl       String?
+  providerPaymentId String?  @unique
+  raw               Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId, orderId])
+}

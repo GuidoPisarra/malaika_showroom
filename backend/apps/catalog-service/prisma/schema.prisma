@@ -1,0 +1,128 @@
+// Catálogo, stock, looks y showroom de cada comercio.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  tenantId      String
+  sku           String?
+  name          String
+  subtitle      String   @default("")
+  description   String   @default("")
+  /// Precio en unidades enteras de la moneda del comercio.
+  price         Int
+  originalPrice Int?
+  category      String
+  /// Lugar que ocupa en el maniquí: top, bottom, shoes, accessory, dress.
+  slot          String   @default("accessory")
+  image         String
+  gallery       String[]
+  /// [{ name, hex }]
+  colors        Json     @default("[]")
+  sizes         String[]
+  material      String   @default("")
+  occasion      String   @default("casual")
+  isNew         Boolean  @default(false)
+  isTrending    Boolean  @default(false)
+  rating        Float    @default(0)
+  reviewsCount  Int      @default(0)
+  details       String[]
+  stock         Int      @default(0)
+  /// GarmentSilhouetteLayer del front (maniquí).
+  silhouette    Json?
+  arModelType   String?
+  arScale       Float?
+  active        Boolean  @default(true)
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, active, category])
+}
+
+enum StockMovementType {
+  RESERVE
+  RELEASE
+  ADJUST
+}
+
+/// Movimientos de stock. Las reservas de un pedido se liberan si vence o se cancela.
+model StockMovement {
+  id        String            @id @default(cuid())
+  tenantId  String
+  productId String
+  orderId   String?
+  type      StockMovementType
+  /// Negativo descuenta stock, positivo lo devuelve.
+  quantity  Int
+  createdAt DateTime          @default(now())
+
+  @@index([tenantId, orderId])
+  @@index([productId])
+}
+
+model LookPreset {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String
+  subtitle     String   @default("")
+  tag          String   @default("")
+  imagePreview String
+  itemIds      String[]
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model ShowroomZone {
+  id             String            @id @default(cuid())
+  tenantId       String
+  name           String
+  ambianceTitle  String            @default("")
+  description    String            @default("")
+  bgGradient     String            @default("")
+  accentColor    String            @default("#D4AF37")
+  panoramicImage String
+  position       Int               @default(0)
+  hotspots       ShowroomHotspot[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([tenantId])
+}
+
+model ShowroomHotspot {
+  id        String       @id @default(cuid())
+  zoneId    String
+  zone      ShowroomZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  productId String
+  xPercent  Float
+  yPercent  Float
+  label     String
+  category  String       @default("")
+  standType String       @default("perchero-dorado")
+  rotationY Float?
+}
+
+/// Looks que guarda una clienta con cuenta.
+model SavedLook {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  name      String
+  itemIds   String[]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, userId])
+}

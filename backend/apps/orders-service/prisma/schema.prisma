@@ -1,0 +1,96 @@
+// Cupones y pedidos de cada comercio.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  tenantId    String
+  code        String
+  description String    @default("")
+  percent     Int?
+  fixedAmount Int?
+  minSubtotal Int?
+  maxUses     Int?
+  usedCount   Int       @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, code])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  MERCADO_PAGO
+  BANK_TRANSFER
+}
+
+model Order {
+  id               String        @id @default(cuid())
+  tenantId         String
+  orderNumber      String
+  /// Clienta con cuenta; null si compró como invitada.
+  userId           String?
+  status           OrderStatus   @default(PENDING_PAYMENT)
+  paymentMethod    PaymentMethod
+  paymentStatus    String        @default("pending")
+  customerEmail    String
+  customerName     String
+  /// ShippingData del front: dirección, ciudad, provincia, CP, notas.
+  shipping         Json
+  itemsCount       Int
+  subtotal         Int
+  bundleDiscount   Int
+  couponCode       String?
+  couponDiscount   Int
+  paymentDiscount  Int
+  shippingCost     Int
+  total            Int
+  currency         String        @default("ARS")
+  trackingNumber   String?
+  adminNotes       String?
+  /// Si no se paga antes de esta fecha se cancela y se libera el stock.
+  expiresAt        DateTime?
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  items            OrderItem[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, userId])
+  @@index([tenantId, customerEmail])
+}
+
+model OrderItem {
+  id         String @id @default(cuid())
+  orderId    String
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  name       String
+  image      String
+  unitPrice  Int
+  quantity   Int
+  size       String
+  colorName  String
+  colorHex   String
+}
