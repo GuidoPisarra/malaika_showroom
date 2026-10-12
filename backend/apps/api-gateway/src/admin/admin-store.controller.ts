@@ -32,13 +32,13 @@ export class AdminStoreController {
 
   @Get('payment-settings')
   paymentSettings(@CurrentTenant() t: TenantContext) {
-    return this.broker.send(PAYMENTS.getSettings, { tenantId: t.id });
+    return this.broker.send(PAYMENTS.getSettings, { tenantId: t.id, tenantSlug: t.slug });
   }
 
   /** Credenciales de Mercado Pago del comercio. Se guardan cifradas y nunca se devuelven enteras. */
   @Put('payment-settings')
   updatePaymentSettings(@CurrentTenant() t: TenantContext, @Body() dto: PaymentSettingsDto) {
-    return this.broker.send(PAYMENTS.updateSettings, { tenantId: t.id, settings: dto });
+    return this.broker.send(PAYMENTS.updateSettings, { tenantId: t.id, tenantSlug: t.slug, settings: dto });
   }
 
   @Get('users')

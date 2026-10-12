@@ -21,6 +21,6 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: t
 app.useGlobalFilters(new RpcToHttpFilter());
 app.enableShutdownHooks();
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 3100);
 await app.listen(port);
 new Logger('Bootstrap').log(`API Gateway escuchando en http://localhost:${port}/api`);

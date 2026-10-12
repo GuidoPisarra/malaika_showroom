@@ -19,7 +19,7 @@ export class CouponsController {
   }
 
   @MessagePattern(ORDERS.upsertCoupon)
-  upsert(@Payload() data: { tenantId: string; coupon: CouponInput }) {
+  upsert(@Payload() data: { tenantId: string; coupon: Partial<CouponInput> }) {
     return this.coupons.upsert(data.tenantId, data.coupon);
   }
 

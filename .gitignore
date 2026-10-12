@@ -42,3 +42,6 @@ bun-debug.log*
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Volcados locales de Redis
+dump.rdb

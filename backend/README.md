@@ -7,7 +7,7 @@ Cada comercio tiene su propio catálogo, stock, cupones, pedidos, clientas, admi
 
 ```
                  ┌──────────────────────────┐
-  Front(s) ────▶ │ api-gateway  (HTTP :3000)│  REST + JWT + rate limit
+  Front(s) ────▶ │ api-gateway  (HTTP :3100)│  REST + JWT + rate limit
                  │  resuelve el comercio    │  por dominio (Host)
                  └────────────┬─────────────┘
                               │ RabbitMQ (exchange "malaika", tipo topic)
@@ -57,7 +57,7 @@ npm run seed                      # superadmin, comercio "malaika", catálogo y 
 npm run dev                       # levanta los 5 servicios con recarga automática
 ```
 
-La API queda en http://localhost:3000/api. El front en desarrollo la usa mediante el proxy de `ng serve` (`proxy.conf.json` en la raíz del repo).
+La API queda en http://localhost:3100/api. El front en desarrollo la usa mediante el proxy de `ng serve` (`proxy.conf.json` en la raíz del repo).
 
 Comandos útiles:
 

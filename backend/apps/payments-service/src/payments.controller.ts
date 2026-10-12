@@ -28,12 +28,12 @@ export class PaymentsController {
   }
 
   @MessagePattern(PAYMENTS.getSettings)
-  getSettings(@Payload() data: { tenantId: string }) {
-    return this.settings.get(data.tenantId);
+  getSettings(@Payload() data: { tenantId: string; tenantSlug?: string }) {
+    return this.settings.get(data.tenantId, data.tenantSlug);
   }
 
   @MessagePattern(PAYMENTS.updateSettings)
-  updateSettings(@Payload() data: { tenantId: string; settings: PaymentSettingsInput }) {
-    return this.settings.update(data.tenantId, data.settings);
+  updateSettings(@Payload() data: { tenantId: string; tenantSlug?: string; settings: PaymentSettingsInput }) {
+    return this.settings.update(data.tenantId, data.settings, data.tenantSlug);
   }
 }

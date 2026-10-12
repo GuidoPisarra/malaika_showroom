@@ -62,20 +62,26 @@ export class CouponsService {
     return this.prisma.coupon.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' } });
   }
 
-  async upsert(tenantId: string, input: CouponInput) {
-    const { id, startsAt, endsAt, ...rest } = input;
-    if (!rest.percent && !rest.fixedAmount) throw badRequest('El cupón necesita un porcentaje o un monto fijo');
-    if (rest.percent && (rest.percent < 1 || rest.percent > 100)) throw badRequest('El porcentaje debe estar entre 1 y 100');
+  /** Crea un cupón o actualiza solo los campos recibidos de uno existente. */
+  async upsert(tenantId: string, input: Partial<CouponInput>) {
+    const { id, startsAt, endsAt, code, ...rest } = input;
+    const existing = id ? await this.prisma.coupon.findFirst({ where: { id, tenantId } }) : null;
+    if (id && !existing) throw notFound('Cupón');
+
+    const percent = rest.percent !== undefined ? rest.percent : existing?.percent;
+    const fixedAmount = rest.fixedAmount !== undefined ? rest.fixedAmount : existing?.fixedAmount;
+    if (!percent && !fixedAmount) throw badRequest('El cupón necesita un porcentaje o un monto fijo');
+    if (percent && (percent < 1 || percent > 100)) throw badRequest('El porcentaje debe estar entre 1 y 100');
+    if (!existing && !code) throw badRequest('Ingresá el código del cupón');
+
     const data = {
       ...rest,
-      code: normalizeCode(input.code),
+      ...(code !== undefined ? { code: normalizeCode(code) } : {}),
       ...(startsAt !== undefined ? { startsAt: startsAt ? new Date(startsAt) : null } : {}),
       ...(endsAt !== undefined ? { endsAt: endsAt ? new Date(endsAt) : null } : {}),
     };
-    if (!id) return this.prisma.coupon.create({ data: { ...data, tenantId } });
-    const updated = await this.prisma.coupon.updateMany({ where: { id, tenantId }, data });
-    if (!updated.count) throw notFound('Cupón');
-    return this.prisma.coupon.findUniqueOrThrow({ where: { id } });
+    if (!existing) return this.prisma.coupon.create({ data: { ...data, code: normalizeCode(code!), tenantId } });
+    return this.prisma.coupon.update({ where: { id: existing.id }, data });
   }
 
   async remove(tenantId: string, id: string) {

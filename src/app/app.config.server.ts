@@ -18,7 +18,7 @@ const forwardHostInterceptor: HttpInterceptorFn = (req, next) => {
 const serverConfig: ApplicationConfig = {
   providers: [
     provideServerRendering(withRoutes(serverRoutes)),
-    { provide: API_BASE_URL, useValue: process.env['API_URL'] || 'http://localhost:3000/api' },
+    { provide: API_BASE_URL, useValue: process.env['API_URL'] || 'http://localhost:3100/api' },
     provideHttpClient(withFetch(), withInterceptors([apiInterceptor, forwardHostInterceptor])),
   ],
 };

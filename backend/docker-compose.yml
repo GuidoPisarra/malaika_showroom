@@ -82,10 +82,10 @@ services:
   api-gateway:
     <<: *service
     build: { context: ., args: { SERVICE: api-gateway } }
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:3100:3100"]
     environment:
       <<: *service-env
-      PORT: 3000
+      PORT: 3100
 
   # Carga el superadmin, el comercio Malaika y su catálogo inicial.
   seed:

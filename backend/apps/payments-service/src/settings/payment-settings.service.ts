@@ -22,7 +22,7 @@ export class PaymentSettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Vista para el panel: los secretos nunca salen enteros. */
-  async get(tenantId: string) {
+  async get(tenantId: string, tenantSlug?: string) {
     const s = await this.prisma.paymentSettings.findUnique({ where: { tenantId } });
     return {
       mercadoPagoConfigured: Boolean(s?.mpAccessTokenEnc),
@@ -30,10 +30,14 @@ export class PaymentSettingsService {
       mpPublicKey: s?.mpPublicKey ?? null,
       mpWebhookSecret: s?.mpWebhookSecretEnc ? maskSecret(decryptSecret(s.mpWebhookSecretEnc)) : null,
       updatedAt: s?.updatedAt ?? null,
+      /** URL a cargar en Mercado Pago Developers > Webhooks (evento "Pagos"). */
+      webhookUrl: tenantSlug
+        ? `${(process.env.PUBLIC_API_URL ?? '').replace(/\/$/, '')}/api/webhooks/mercadopago/${tenantSlug}`
+        : null,
     };
   }
 
-  async update(tenantId: string, input: PaymentSettingsInput) {
+  async update(tenantId: string, input: PaymentSettingsInput, tenantSlug?: string) {
     if (input.mpAccessToken && !/^(APP_USR|TEST)-/.test(input.mpAccessToken.trim())) {
       throw badRequest('El access token de Mercado Pago debe empezar con APP_USR- o TEST-');
     }
@@ -43,7 +47,7 @@ export class PaymentSettingsService {
       mpPublicKey: input.mpPublicKey === undefined ? undefined : input.mpPublicKey?.trim() || null,
     };
     await this.prisma.paymentSettings.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
-    return this.get(tenantId);
+    return this.get(tenantId, tenantSlug);
   }
 
   async credentials(tenantId: string): Promise<MercadoPagoCredentials | null> {
